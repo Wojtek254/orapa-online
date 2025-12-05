@@ -5,14 +5,6 @@ import numpy as np
 import string
 from shapely.geometry import Polygon
 
-@st.experimental_singleton
-def get_rooms():
-    """
-    Zwraca globalny słownik pokoi.
-    Klucz: room_code (str), wartość: struktura z 'boards'.
-    """
-    return {}
-
 # ---------------------------------------------------------
 # Konfiguracja plansz (dwa światy)
 # ---------------------------------------------------------
@@ -27,55 +19,23 @@ BOARD_CONFIGS = {
     },
 }
 
-
-label_to_key = {cfg["label"]: key for key, cfg in BOARD_CONFIGS.items()}
-labels = [cfg["label"] for cfg in BOARD_CONFIGS.values()]
-
 # Ikony kolorów (dla przycisków)
 Y_ICON = "🟨"   # żółty trójkąt
 W_ICON = "⬜"   # białe figury + przezroczysty trójkąt
 B_ICON = "🟦"   # niebieski trójkąt + jasnoniebieski kwadrat
 R_ICON = "🟥"   # czerwony równoległobok
 
-# ---------------------------------------------------------
-# Konfiguracja strony
-# ---------------------------------------------------------
-st.set_page_config(page_title="Orapa online", layout="wide")
-st.markdown(
-    """
-    <h1 style="text-align:center;">
-        ORAPA online
-    </h1>
-    """,
-    unsafe_allow_html=True,
-)
+ROWS = 8
+COLS = 10
 
+
+# ---------------------------------------------------------
+# Funkcja tworząca "puste" plansze (dla nowej gry/pokoju)
+# ---------------------------------------------------------
 def make_empty_boards():
     boards = {}
     for key in BOARD_CONFIGS.keys():
         boards[key] = {
-            "y_cx": 3.0, "y_cy": 3.0, "y_ori": 0,
-            "w_cx": 3.0, "w_cy": 5.0, "w_ori": 0,
-            "b_cx": 7.0, "b_cy": 3.0, "b_ori": 0,
-            "s_cx": 6.0, "s_cy": 6.0, "s_ori": 0,
-            "r_cx": 4.0, "r_cy": 2.0, "r_ori": 0, "r_flip": False,
-            "t2_cx": 2.0, "t2_cy": 2.0, "t2_ori": 0,
-            "lb_x": 1.0, "lb_y": 1.0,
-            "layout_valid": None,
-            "layout_msg": "",
-        }
-    return boards
-
-# ---------------------------------------------------------
-# Inicjalizacja stanu (dla dwóch plansz)
-# ---------------------------------------------------------
-if "current_board" not in st.session_state:
-    st.session_state.current_board = "zielona"
-
-if "boards" not in st.session_state:
-    st.session_state.boards = {}
-    for key in BOARD_CONFIGS.keys():
-        st.session_state.boards[key] = {
             # Żółty trójkąt
             "y_cx": 3.0,
             "y_cy": 3.0,
@@ -97,24 +57,84 @@ if "boards" not in st.session_state:
             "r_cy": 2.0,
             "r_ori": 0,
             "r_flip": False,
-            # Przezroczysty trójkąt (hyp=2)
+            # Przezroczysty trójkąt (hyp = 2)
             "t2_cx": 2.0,
             "t2_cy": 2.0,
             "t2_ori": 0,
             # Jasnoniebieski kwadrat 1x1
             "lb_x": 1.0,
             "lb_y": 1.0,
-            # Walidacja układu
+            # Status sprawdzania
             "layout_valid": None,
             "layout_msg": "",
         }
+    return boards
 
 
 # ---------------------------------------------------------
-# Siatka
+# Globalny "magazyn" pokoi (wspólny dla wszystkich sesji)
 # ---------------------------------------------------------
-ROWS = 8
-COLS = 10
+@st.experimental_singleton
+def get_rooms():
+    """
+    Zwraca globalny słownik pokoi.
+    Klucz: room_code (str), wartość: {"boards": ...}.
+    """
+    return {}
+
+
+# ---------------------------------------------------------
+# Konfiguracja strony
+# ---------------------------------------------------------
+st.set_page_config(page_title="Orapa online", layout="wide")
+st.markdown(
+    """
+    <h1 style="text-align:center;">
+        Plansza jak w Orapie – dwie plansze i figury
+    </h1>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---------------------------------------------------------
+# LOBBY – wybór pokoju
+# ---------------------------------------------------------
+rooms = get_rooms()
+
+if "room_code" not in st.session_state:
+    st.session_state.room_code = ""
+
+room_col1, room_col2 = st.columns([1.0, 0.3])
+
+with room_col1:
+    room_input = st.text_input(
+        "Kod pokoju (umów się z drugim graczem, np. ABC123)",
+        value=st.session_state.room_code,
+    )
+
+with room_col2:
+    st.markdown("&nbsp;")
+    join_clicked = st.button("Dołącz / utwórz pokój")
+
+if join_clicked:
+    st.session_state.room_code = room_input.strip()
+
+room_code = st.session_state.room_code.strip()
+
+if not room_code:
+    st.warning("Podaj kod pokoju, żeby zacząć grę.")
+    st.stop()
+
+# Inicjalizacja stanu gry dla tego pokoju
+if room_code not in rooms:
+    rooms[room_code] = {
+        "boards": make_empty_boards()
+    }
+
+# Aktualna plansza (zielona/fioletowa) w ramach sesji
+if "current_board" not in st.session_state:
+    st.session_state.current_board = "zielona"
+
 
 # ---------------------------------------------------------
 # Geometria figur (bazowa w (0,0))
@@ -267,7 +287,7 @@ def clamp_lightblue(lx, ly):
 
 
 # ---------------------------------------------------------
-# Poligony i sprawdzanie ułożenia (na jednym boardzie)
+# Poligony i sprawdzanie ułożenia (dla JEDNEJ gry/state)
 # ---------------------------------------------------------
 def get_all_polygons(state):
     shapes = []
@@ -368,6 +388,7 @@ def draw_board(state, bg_color):
     ax.set_xlim(-0.5, COLS + 0.5)
     ax.set_ylim(-0.5, ROWS + 0.5)
 
+    # Siatka
     for x in range(COLS + 1):
         ax.plot([x, x], [0, ROWS], color="white", linewidth=1, zorder=0)
     for y in range(ROWS + 1):
@@ -376,24 +397,34 @@ def draw_board(state, bg_color):
     def row_y(r):
         return ROWS - 0.5 - r
 
+    # Podpisy
     for x in range(COLS):
-        ax.text(x + 0.5, ROWS + 0.45, str(x + 1),
-                ha="center", va="center", color="white", fontsize=12, zorder=0)
+        ax.text(
+            x + 0.5, ROWS + 0.45, str(x + 1),
+            ha="center", va="center", color="white", fontsize=12, zorder=0
+        )
 
     bottom_labels = list(string.ascii_uppercase[8:8 + COLS])
     for x, label in enumerate(bottom_labels):
-        ax.text(x + 0.5, -0.45, label,
-                ha="center", va="center", color="white", fontsize=12, zorder=0)
+        ax.text(
+            x + 0.5, -0.45, label,
+            ha="center", va="center", color="white", fontsize=12, zorder=0
+        )
 
     left_labels = list(string.ascii_uppercase[:ROWS])
     for r, label in enumerate(left_labels):
-        ax.text(-0.45, row_y(r),
-                label, ha="center", va="center",
-                color="white", fontsize=12, zorder=0)
+        ax.text(
+            -0.45, row_y(r), label,
+            ha="center", va="center", color="white", fontsize=12, zorder=0
+        )
 
     for r in range(ROWS):
-        ax.text(COLS + 0.45, row_y(r), str(11 + r),
-                ha="center", va="center", color="white", fontsize=12, zorder=0)
+        ax.text(
+            COLS + 0.45, row_y(r), str(11 + r),
+            ha="center", va="center", color="white", fontsize=12, zorder=0
+        )
+
+    # Figury
 
     # Żółty
     verts_y = yellow_vertices(state["y_cx"], state["y_cy"], state["y_ori"])
@@ -432,8 +463,10 @@ def draw_board(state, bg_color):
     ax.add_patch(sq)
 
     # Czerwony równoległobok
-    verts_r = red_vertices(state["r_cx"], state["r_cy"],
-                           state["r_ori"], state["r_flip"])
+    verts_r = red_vertices(
+        state["r_cx"], state["r_cy"],
+        state["r_ori"], state["r_flip"]
+    )
     par = patches.Polygon(
         verts_r, closed=True,
         facecolor="red", edgecolor="red",
@@ -441,7 +474,7 @@ def draw_board(state, bg_color):
     )
     ax.add_patch(par)
 
-    # Przezroczysty trójkąt (wypełnienie w kolorze planszy)
+    # Przezroczysty trójkąt (hyp=2) – wypełnienie w kolorze tła
     verts_t2 = tri_hyp2_vertices(state["t2_cx"], state["t2_cy"], state["t2_ori"])
     tri2 = patches.Polygon(
         verts_t2, closed=True,
@@ -482,24 +515,23 @@ def figure_header(container, text, color_hex, black_override=False):
 
 
 # ---------------------------------------------------------
-# Layout: dwie kolumny sterowania + plansza
+# Layout: dwie kolumny sterowania + plansza + przełącznik
 # ---------------------------------------------------------
-controls_col1, controls_col2, board_col, switch_col = st.columns([0.5, 0.5, 2.0, 0.4])
+controls_col1, controls_col2, board_col, switch_col = st.columns([0.4, 0.4, 2.0, 0.4])
 
 # Przycisk przełączania planszy w prawej, wąskiej kolumnie
 with switch_col:
-    st.markdown("&nbsp;")  # mały odstęp od góry
+    st.markdown("&nbsp;")
     if st.button("Przełącz planszę", key="switch_board"):
         if st.session_state.current_board == "zielona":
             st.session_state.current_board = "fioletowa"
         else:
             st.session_state.current_board = "zielona"
 
-# Ustal aktualną planszę po ewentualnym kliknięciu
+# Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
 board_key = st.session_state.current_board
 BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
-state = st.session_state.boards[board_key]
-
+state = rooms[room_code]["boards"][board_key]
 
 
 # =====================================================================
@@ -716,7 +748,7 @@ with controls_col2:
 
 
 # ---------------------------------------------------------
-# Plansza – prawa kolumna
+# Plansza – prawa duża kolumna
 # ---------------------------------------------------------
 with board_col:
     board_title = BOARD_CONFIGS[board_key]["label"]
@@ -726,4 +758,3 @@ with board_col:
     )
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
-
