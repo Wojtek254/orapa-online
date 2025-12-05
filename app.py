@@ -90,11 +90,12 @@ st.set_page_config(page_title="Orapa online", layout="wide")
 st.markdown(
     """
     <h1 style="text-align:center;">
-        Plansza jak w Orapie – dwie plansze i figury
+        ORAPA online
     </h1>
     """,
     unsafe_allow_html=True,
 )
+
 
 # ---------------------------------------------------------
 # LOBBY – wybór pokoju
