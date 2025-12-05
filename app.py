@@ -74,7 +74,7 @@ def make_empty_boards():
 # ---------------------------------------------------------
 # Globalny "magazyn" pokoi (wspólny dla wszystkich sesji)
 # ---------------------------------------------------------
-@st.experimental_singleton
+@st.cache_resource
 def get_rooms():
     """
     Zwraca globalny słownik pokoi.
