@@ -5,6 +5,14 @@ import numpy as np
 import string
 from shapely.geometry import Polygon
 
+@st.experimental_singleton
+def get_rooms():
+    """
+    Zwraca globalny słownik pokoi.
+    Klucz: room_code (str), wartość: struktura z 'boards'.
+    """
+    return {}
+
 # ---------------------------------------------------------
 # Konfiguracja plansz (dwa światy)
 # ---------------------------------------------------------
@@ -41,6 +49,22 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
+def make_empty_boards():
+    boards = {}
+    for key in BOARD_CONFIGS.keys():
+        boards[key] = {
+            "y_cx": 3.0, "y_cy": 3.0, "y_ori": 0,
+            "w_cx": 3.0, "w_cy": 5.0, "w_ori": 0,
+            "b_cx": 7.0, "b_cy": 3.0, "b_ori": 0,
+            "s_cx": 6.0, "s_cy": 6.0, "s_ori": 0,
+            "r_cx": 4.0, "r_cy": 2.0, "r_ori": 0, "r_flip": False,
+            "t2_cx": 2.0, "t2_cy": 2.0, "t2_ori": 0,
+            "lb_x": 1.0, "lb_y": 1.0,
+            "layout_valid": None,
+            "layout_msg": "",
+        }
+    return boards
 
 # ---------------------------------------------------------
 # Inicjalizacja stanu (dla dwóch plansz)
