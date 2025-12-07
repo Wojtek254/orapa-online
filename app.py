@@ -142,8 +142,13 @@ nickname = st.session_state.nickname
 # Inicjalizacja stanu gry dla tego pokoju
 if room_code not in rooms:
     rooms[room_code] = {
-        "boards": make_empty_boards()
+        "boards": make_empty_boards(),
+        "chat": [],   # lista wiadomości
     }
+
+room_data = rooms[room_code]
+chat_log = room_data["chat"]
+
 
 # Aktualna plansza (zielona/fioletowa) w ramach sesji
 if "current_board" not in st.session_state:
@@ -394,7 +399,7 @@ def check_layout(state):
 # Rysowanie planszy
 # ---------------------------------------------------------
 def draw_board(state, bg_color):
-    fig, ax = plt.subplots(figsize=(7, 6))
+    fig, ax = plt.subplots(figsize=(5.5, 5))
 
     fig.patch.set_facecolor(bg_color)
     ax.set_facecolor(bg_color)
@@ -531,21 +536,25 @@ def figure_header(container, text, color_hex, black_override=False):
 # ---------------------------------------------------------
 # Layout: dwie kolumny sterowania + plansza + przełącznik
 # ---------------------------------------------------------
-controls_col1, controls_col2, board_col, switch_col = st.columns([0.4, 0.4, 2.0, 0.4])
+controls_col1, controls_col2, board_col, switch_col = st.columns([0.4, 0.4, 1.6, 1.0])
 
 # Przycisk przełączania planszy w prawej, wąskiej kolumnie
-with switch_col:
-    st.markdown("&nbsp;")
+# Prawa kolumna: przełączanie planszy + czat
+with right_col:
+    # przycisk przy górnej krawędzi, po prawej od planszy
+    st.markdown("### ")
     if st.button("Przełącz planszę", key="switch_board"):
         if st.session_state.current_board == "zielona":
             st.session_state.current_board = "fioletowa"
         else:
             st.session_state.current_board = "zielona"
 
+
 # Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
 board_key = st.session_state.current_board
 BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
-state = rooms[room_code]["boards"][board_key]
+state = room_data["boards"][board_key]
+
 
 
 # =====================================================================
@@ -772,3 +781,41 @@ with board_col:
     )
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
+
+with right_col:
+    # przycisk przełączania
+    st.markdown("### ")
+    if st.button("Przełącz planszę", key="switch_board"):
+        if st.session_state.current_board == "zielona":
+            st.session_state.current_board = "fioletowa"
+        else:
+            st.session_state.current_board = "zielona"
+
+    # --- CZAT POKOJU ---
+    st.markdown("---")
+    st.markdown("### Czat pokoju")
+
+    # przyjmuję, że masz:
+    # room_data = rooms[room_code]
+    # chat_log = room_data["chat"]
+    # nickname = st.session_state.nickname
+    if chat_log:
+        for msg in chat_log[-50:]:
+            author = msg.get("author", "Anonim")
+            text = msg.get("text", "")
+            st.markdown(f"**{author}:** {text}")
+    else:
+        st.markdown("_Brak wiadomości – napisz coś jako pierwszy._")
+
+    chat_input = st.text_input(
+        "Twoja wiadomość",
+        value=st.session_state.get("chat_input", ""),
+        key="chat_input",
+    )
+
+    if st.button("Wyślij", key="send_chat"):
+        txt = st.session_state.get("chat_input", "").strip()
+        if txt:
+            chat_log.append({"author": nickname, "text": txt})
+            st.session_state.chat_input = ""
+
