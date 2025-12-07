@@ -652,12 +652,13 @@ with right_col:
 
     chat_log = room_data.setdefault("chat", [])
 
-    # budujemy HTML wiadomości
+    # Generujemy HTML wiadomości
     chat_items_html = ""
     for msg in chat_log[-200:]:
         author = msg.get("author", "Anonim")
         text = msg.get("text", "")
 
+        # kolory: ja = białe, przeciwnik = jasnofioletowe, system = szare
         if author == nickname:
             bg = "#ffffff"
         elif author == "SYSTEM":
@@ -676,10 +677,10 @@ with right_col:
         </div>
         """
 
-    # pełny komponent HTML z autoscrollem
+    # Cały komponent HTML (duże okno + autoscroll)
     full_html = f"""
     <div id="chat-box" style="
-        height:800px;
+        height:630px;                 /* <<-- stały rozmiar, 2/3 większe */
         overflow-y:auto;
         padding:6px;
         border:1px solid #cccccc;
@@ -690,22 +691,23 @@ with right_col:
     </div>
 
     <script>
-    // Poczekaj aż komponent się w pełni wyświetli
-    const chatBox = document.getElementById("chat-box");
-    if (chatBox) {{
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }}
+        const box = document.getElementById("chat-box");
+        if (box) {{
+            box.scrollTop = box.scrollHeight;  /* autoscroll do dołu */
+        }}
     </script>
     """
 
-    components.html(full_html, height=420, scrolling=False)
+    # Komponent HTML musi być trochę większy niż div — inaczej Streamlit ucina style
+    components.html(full_html, height=680, scrolling=False)
 
-    # pole wpisywania – Enter wysyła, send_message czyści input
+    # Input wysyłania — send_message czyści pole
     st.text_input(
         "Twoja wiadomość (Enter wysyła)",
         key="chat_input",
         on_change=send_message,
     )
+
 
 
 
