@@ -136,8 +136,15 @@ nick_input = st.text_input(
     max_chars=20,
 )
 
-st.session_state.nickname = nick_input.strip() or "Anonim"
+nick_clean = nick_input.strip()
+
+if not nick_clean:
+    st.info("Podaj najpierw swoją nazwę, wtedy pojawią się plansze i czat.")
+    st.stop()
+
+st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
+
 
 # Inicjalizacja stanu gry dla tego pokoju
 if room_code not in rooms:
@@ -564,15 +571,15 @@ with right_col:
 
     chat_input = st.text_input(
         "Twoja wiadomość",
-        value=st.session_state.get("chat_input", ""),
         key="chat_input",
     )
-
+    
     if st.button("Wyślij", key="send_chat"):
-        txt = st.session_state.get("chat_input", "").strip()
+        txt = chat_input.strip()
         if txt:
             chat_log.append({"author": nickname, "text": txt})
-            st.session_state.chat_input = ""
+            # NIE czyścimy chat_input programowo, nie tykamy session_state tutaj
+
 
 # Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
 board_key = st.session_state.current_board
