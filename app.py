@@ -4,7 +4,7 @@ import matplotlib.patches as patches
 import numpy as np
 import string
 from shapely.geometry import Polygon
-
+from streamlit_autorefresh import st_autorefresh
 
 # ---------------------------------------------------------
 # Konfiguracja plansz (dwa światy)
@@ -79,10 +79,12 @@ def make_empty_boards():
 def get_rooms():
     """
     Zwraca globalny słownik pokoi.
-    Klucz: room_code (str), wartość: {"boards": ...}.
+    Klucz: room_code (str), wartość: {"boards": ..., "chat": [...] }.
     """
     return {}
 
+
+rooms = get_rooms()
 
 # ---------------------------------------------------------
 # Konfiguracja strony
@@ -97,12 +99,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # ---------------------------------------------------------
 # LOBBY – wybór pokoju
 # ---------------------------------------------------------
-rooms = get_rooms()
-
 if "room_code" not in st.session_state:
     st.session_state.room_code = ""
 
@@ -146,30 +145,19 @@ if not nick_clean:
 st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
 
-# ----------------- Autoodświeżanie co 2 sekundy -----------------
-st.markdown(
-    """
-    <script>
-    setTimeout(function() {
-        window.location.reload();
-    }, 2000);
-    </script>
-    """,
-    unsafe_allow_html=True
-)
+# Autoodświeżanie całej appki co 1 sekundę
+st_autorefresh(interval=1000, key="chat_autorefresh")
 
-
-
-# Inicjalizacja stanu gry dla tego pokoju
+# ---------------------------------------------------------
+# Inicjalizacja stanu gry dla pokoju
+# ---------------------------------------------------------
 if room_code not in rooms:
     rooms[room_code] = {
         "boards": make_empty_boards(),
-        "chat": [],   # lista wiadomości
+        "chat": [],
     }
 
 room_data = rooms[room_code]
-chat_log = room_data["chat"]
-
 
 # Aktualna plansza (zielona/fioletowa) w ramach sesji
 if "current_board" not in st.session_state:
@@ -327,7 +315,7 @@ def clamp_lightblue(lx, ly):
 
 
 # ---------------------------------------------------------
-# Poligony i sprawdzanie ułożenia (dla JEDNEJ gry/state)
+# Poligony i sprawdzanie ułożenia (dla JEDNEJ planszy/state)
 # ---------------------------------------------------------
 def get_all_polygons(state):
     shapes = []
@@ -420,7 +408,8 @@ def check_layout(state):
 # Rysowanie planszy
 # ---------------------------------------------------------
 def draw_board(state, bg_color):
-    fig, ax = plt.subplots(figsize=(5.5, 5))
+    # trochę mniejsza plansza, żeby zrobić miejsce na czat
+    fig, ax = plt.subplots(figsize=(5, 5))
 
     fig.patch.set_facecolor(bg_color)
     ax.set_facecolor(bg_color)
@@ -555,13 +544,8 @@ def figure_header(container, text, color_hex, black_override=False):
 
 
 # ---------------------------------------------------------
-# Layout: dwie kolumny sterowania + plansza + prawa kolumna (przełącznik + czat)
+# Funkcja wysyłania wiadomości czatu (Enter)
 # ---------------------------------------------------------
-controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
-
-room_data = rooms[room_code]
-chat_log = room_data.setdefault("chat", [])
-
 def send_message():
     txt = st.session_state.get("chat_input", "").strip()
     if not txt:
@@ -572,12 +556,16 @@ def send_message():
     chat_log_local = room_data_local.setdefault("chat", [])
     nickname_local = st.session_state.nickname
     chat_log_local.append({"author": nickname_local, "text": txt})
-    # NIE czyścimy chat_input programowo – unikamy konfliktu z Streamlit API
+    # nie czyścimy chat_input, Streamlit sam zarządza on_change
 
+
+# ---------------------------------------------------------
+# Layout: dwie kolumny sterowania + plansza + prawa kolumna
+# ---------------------------------------------------------
+controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
 
 # Prawa kolumna: przełączanie planszy + czat
 with right_col:
-    # przycisk przy górnej krawędzi, po prawej od planszy
     st.markdown("### ")
     if st.button("Przełącz planszę", key="switch_board"):
         if st.session_state.current_board == "zielona":
@@ -588,6 +576,8 @@ with right_col:
     st.markdown("---")
     st.markdown("### Czat pokoju")
 
+    chat_log = room_data.setdefault("chat", [])
+
     if chat_log:
         for msg in chat_log[-50:]:
             author = msg.get("author", "Anonim")
@@ -596,24 +586,16 @@ with right_col:
     else:
         st.markdown("_Brak wiadomości – napisz coś jako pierwszy._")
 
-    # Enter wysyła wiadomość (on_change)
     st.text_input(
-        "Twoja wiadomość",
+        "Twoja wiadomość (Enter wysyła)",
         key="chat_input",
         on_change=send_message,
     )
-
-    # Opcjonalnie zostawiamy też przycisk (robi to samo)
-    if st.button("Wyślij", key="send_chat"):
-        send_message()
-
-
 
 # Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
 board_key = st.session_state.current_board
 BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
 state = room_data["boards"][board_key]
-
 
 
 # =====================================================================
@@ -840,6 +822,3 @@ with board_col:
     )
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
-
-
-
