@@ -226,6 +226,12 @@ state = boards[board_key]
 BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
 board_title = BOARD_CONFIGS[board_key]["label"]
 
+# Sterowanie figurami:
+# - na zielonej planszy blokujemy edycję po START (ready=True)
+# - na fioletowej planszy zawsze można edytować (zgadywanie)
+controls_enabled = not (board_key == "zielona" and player_entry["ready"])
+
+
 # ---------------------------------------------------------
 # Geometria figur (bazowa w (0,0))
 # ---------------------------------------------------------
@@ -915,6 +921,10 @@ with board_col:
 
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
+
+    if board_key == "zielona" and player_entry["ready"]:
+        st.info("Twoja plansza została zatwierdzona po START i jest zablokowana.")
+
 
     # -------------------- RESTART & START/ZAKOŃCZ --------------------
     btn_row = st.columns(2)
