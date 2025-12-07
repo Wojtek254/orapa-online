@@ -615,12 +615,18 @@ def send_message():
     txt = st.session_state.get("chat_input", "").strip()
     if not txt:
         return
+
     room_code_local = st.session_state.room_code
     rooms_local = get_rooms()
     room_data_local = ensure_room(room_code_local)
     chat_log_local = room_data_local.setdefault("chat", [])
     nickname_local = st.session_state.nickname
+
     chat_log_local.append({"author": nickname_local, "text": txt})
+
+    # wyczyść pole po wysłaniu
+    st.session_state.chat_input = ""
+
 
 
 # ---------------------------------------------------------
@@ -641,61 +647,54 @@ controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 
 
 # PRAWY BOK: czat
 with right_col:
-    # ------------------ CZAT ------------------
-    
     st.markdown("### Czat pokoju")
-    
+
     chat_log = room_data.setdefault("chat", [])
-    
-    # budujemy cały HTML do środka scrollboxa
+
+    # zbuduj HTML dla wszystkich wiadomości
     chat_items_html = ""
-    
     for msg in chat_log[-100:]:
         author = msg.get("author", "Anonim")
         text = msg.get("text", "")
-    
-        # inne tło dla przeciwnika
+
         if author == nickname:
-            bg = "#ffffff"           # moje wiadomości – białe
+            bg = "#ffffff"      # moje
         elif author == "SYSTEM":
-            bg = "#dddddd"           # system
+            bg = "#dddddd"      # system
         else:
-            bg = "#f3e6ff"           # przeciwnik – jasny fiolet
-    
+            bg = "#f3e6ff"      # przeciwnik
+
         chat_items_html += f"""
-            <div style="
-                background-color:{bg};
-                padding:6px 8px;
-                margin-bottom:4px;
-                border-radius:6px;
-                font-size:0.9rem;
-            ">
-                <strong>{author}:</strong> {text}
-            </div>
-        """
-    
-    # cały scrollbox
+<div style="background-color:{bg}; padding:6px 8px; margin-bottom:4px;
+            border-radius:6px; font-size:0.9rem;">
+    <strong>{author}:</strong> {text}
+</div>
+"""
+
+    # scrollbox + JS autoscroll
     scrollbox_html = f"""
-    <div style="
-        height: 400px;
-        overflow-y: auto;
-        padding: 6px;
-        border: 1px solid #cccccc;
-        border-radius: 6px;
-        background-color: #fdfdfd;
-    ">
-        {chat_items_html}
-    </div>
-    """
-    
+<div id="chat-box" style="height:400px; overflow-y:auto; padding:6px;
+            border:1px solid #cccccc; border-radius:6px;
+            background-color:#fdfdfd;">
+    {chat_items_html}
+</div>
+<script>
+    var chatBox = document.getElementById('chat-box');
+    if (chatBox) {{
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }}
+</script>
+"""
+
     st.markdown(scrollbox_html, unsafe_allow_html=True)
-    
-    # input
+
+    # input – Enter wysyła, po wysłaniu send_message czyści pole
     st.text_input(
         "Twoja wiadomość (Enter wysyła)",
         key="chat_input",
         on_change=send_message,
     )
+
 
 
 
