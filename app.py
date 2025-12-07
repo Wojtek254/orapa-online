@@ -646,9 +646,19 @@ with right_col:
     chat_log = room_data.setdefault("chat", [])
 
     st.markdown(
-        "<div style='max-height: 400px; overflow-y: auto; padding-right: 4px;'>",
+        """
+        <div style="
+            height: 400px;
+            overflow-y: auto;
+            padding: 4px;
+            border: 1px solid #cccccc;
+            border-radius: 6px;
+            background-color: #fdfdfd;
+        ">
+        """,
         unsafe_allow_html=True,
     )
+
 
     if chat_log:
         for msg in chat_log[-100:]:
