@@ -641,36 +641,28 @@ controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 
 
 # PRAWY BOK: czat
 with right_col:
+    # ------------------ CZAT ------------------
+    
     st.markdown("### Czat pokoju")
-
+    
     chat_log = room_data.setdefault("chat", [])
-
-    st.markdown(
-        """
-        <div style="
-            height: 400px;
-            overflow-y: auto;
-            padding: 4px;
-            border: 1px solid #cccccc;
-            border-radius: 6px;
-            background-color: #fdfdfd;
-        ">
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-    if chat_log:
-        for msg in chat_log[-100:]:
-            author = msg.get("author", "Anonim")
-            text = msg.get("text", "")
-            if author == nickname:
-                bg = "#ffffff"
-            elif author == "SYSTEM":
-                bg = "#dddddd"
-            else:
-                bg = "#f3e6ff"  # jasnofioletowe tło dla przeciwnika
-            html = f"""
+    
+    # budujemy cały HTML do środka scrollboxa
+    chat_items_html = ""
+    
+    for msg in chat_log[-100:]:
+        author = msg.get("author", "Anonim")
+        text = msg.get("text", "")
+    
+        # inne tło dla przeciwnika
+        if author == nickname:
+            bg = "#ffffff"           # moje wiadomości – białe
+        elif author == "SYSTEM":
+            bg = "#dddddd"           # system
+        else:
+            bg = "#f3e6ff"           # przeciwnik – jasny fiolet
+    
+        chat_items_html += f"""
             <div style="
                 background-color:{bg};
                 padding:6px 8px;
@@ -680,21 +672,31 @@ with right_col:
             ">
                 <strong>{author}:</strong> {text}
             </div>
-            """
-            st.markdown(html, unsafe_allow_html=True)
-    else:
-        st.markdown(
-            "<em>Brak wiadomości – napisz coś jako pierwszy.</em>",
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
+        """
+    
+    # cały scrollbox
+    scrollbox_html = f"""
+    <div style="
+        height: 400px;
+        overflow-y: auto;
+        padding: 6px;
+        border: 1px solid #cccccc;
+        border-radius: 6px;
+        background-color: #fdfdfd;
+    ">
+        {chat_items_html}
+    </div>
+    """
+    
+    st.markdown(scrollbox_html, unsafe_allow_html=True)
+    
+    # input
     st.text_input(
         "Twoja wiadomość (Enter wysyła)",
         key="chat_input",
         on_change=send_message,
     )
+
 
 
 # ---------------------------------------------------------
