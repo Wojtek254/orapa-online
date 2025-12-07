@@ -534,14 +534,16 @@ def figure_header(container, text, color_hex, black_override=False):
 
 
 # ---------------------------------------------------------
-# Layout: dwie kolumny sterowania + plansza + przełącznik
+# Layout: dwie kolumny sterowania + plansza + prawa kolumna (przełącznik + czat)
 # ---------------------------------------------------------
-controls_col1, controls_col2, board_col, switch_col = st.columns([0.4, 0.4, 1.6, 1.0])
+controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
 
-# Przycisk przełączania planszy w prawej, wąskiej kolumnie
+room_data = rooms[room_code]
+chat_log = room_data.setdefault("chat", [])
+
 # Prawa kolumna: przełączanie planszy + czat
 with right_col:
-    # przycisk przełączania
+    # przycisk przy górnej krawędzi, po prawej od planszy
     st.markdown("### ")
     if st.button("Przełącz planszę", key="switch_board"):
         if st.session_state.current_board == "zielona":
@@ -549,14 +551,9 @@ with right_col:
         else:
             st.session_state.current_board = "zielona"
 
-    # --- CZAT POKOJU ---
     st.markdown("---")
     st.markdown("### Czat pokoju")
 
-    # przyjmuję, że masz:
-    # room_data = rooms[room_code]
-    # chat_log = room_data["chat"]
-    # nickname = st.session_state.nickname
     if chat_log:
         for msg in chat_log[-50:]:
             author = msg.get("author", "Anonim")
@@ -576,7 +573,6 @@ with right_col:
         if txt:
             chat_log.append({"author": nickname, "text": txt})
             st.session_state.chat_input = ""
-
 
 # Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
 board_key = st.session_state.current_board
