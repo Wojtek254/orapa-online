@@ -126,6 +126,19 @@ if not room_code:
     st.warning("Podaj kod pokoju, żeby zacząć grę.")
     st.stop()
 
+# --- Nazwa gracza widoczna w czacie ---
+if "nickname" not in st.session_state:
+    st.session_state.nickname = ""
+
+nick_input = st.text_input(
+    "Twoja nazwa w czacie (widoczna dla innych w tym pokoju)",
+    value=st.session_state.nickname,
+    max_chars=20,
+)
+
+st.session_state.nickname = nick_input.strip() or "Anonim"
+nickname = st.session_state.nickname
+
 # Inicjalizacja stanu gry dla tego pokoju
 if room_code not in rooms:
     rooms[room_code] = {
