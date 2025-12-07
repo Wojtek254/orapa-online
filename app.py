@@ -541,13 +541,41 @@ controls_col1, controls_col2, board_col, switch_col = st.columns([0.4, 0.4, 1.6,
 # Przycisk przełączania planszy w prawej, wąskiej kolumnie
 # Prawa kolumna: przełączanie planszy + czat
 with right_col:
-    # przycisk przy górnej krawędzi, po prawej od planszy
+    # przycisk przełączania
     st.markdown("### ")
     if st.button("Przełącz planszę", key="switch_board"):
         if st.session_state.current_board == "zielona":
             st.session_state.current_board = "fioletowa"
         else:
             st.session_state.current_board = "zielona"
+
+    # --- CZAT POKOJU ---
+    st.markdown("---")
+    st.markdown("### Czat pokoju")
+
+    # przyjmuję, że masz:
+    # room_data = rooms[room_code]
+    # chat_log = room_data["chat"]
+    # nickname = st.session_state.nickname
+    if chat_log:
+        for msg in chat_log[-50:]:
+            author = msg.get("author", "Anonim")
+            text = msg.get("text", "")
+            st.markdown(f"**{author}:** {text}")
+    else:
+        st.markdown("_Brak wiadomości – napisz coś jako pierwszy._")
+
+    chat_input = st.text_input(
+        "Twoja wiadomość",
+        value=st.session_state.get("chat_input", ""),
+        key="chat_input",
+    )
+
+    if st.button("Wyślij", key="send_chat"):
+        txt = st.session_state.get("chat_input", "").strip()
+        if txt:
+            chat_log.append({"author": nickname, "text": txt})
+            st.session_state.chat_input = ""
 
 
 # Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
@@ -782,40 +810,5 @@ with board_col:
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
 
-with right_col:
-    # przycisk przełączania
-    st.markdown("### ")
-    if st.button("Przełącz planszę", key="switch_board"):
-        if st.session_state.current_board == "zielona":
-            st.session_state.current_board = "fioletowa"
-        else:
-            st.session_state.current_board = "zielona"
 
-    # --- CZAT POKOJU ---
-    st.markdown("---")
-    st.markdown("### Czat pokoju")
-
-    # przyjmuję, że masz:
-    # room_data = rooms[room_code]
-    # chat_log = room_data["chat"]
-    # nickname = st.session_state.nickname
-    if chat_log:
-        for msg in chat_log[-50:]:
-            author = msg.get("author", "Anonim")
-            text = msg.get("text", "")
-            st.markdown(f"**{author}:** {text}")
-    else:
-        st.markdown("_Brak wiadomości – napisz coś jako pierwszy._")
-
-    chat_input = st.text_input(
-        "Twoja wiadomość",
-        value=st.session_state.get("chat_input", ""),
-        key="chat_input",
-    )
-
-    if st.button("Wyślij", key="send_chat"):
-        txt = st.session_state.get("chat_input", "").strip()
-        if txt:
-            chat_log.append({"author": nickname, "text": txt})
-            st.session_state.chat_input = ""
 
