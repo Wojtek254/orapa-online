@@ -643,7 +643,7 @@ if room_data["game_over"]:
 # ---------------------------------------------------------
 # Layout: dwie kolumny sterowania + plansza + prawa kolumna (czat)
 # ---------------------------------------------------------
-controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
+controls_col1, controls_col2, board_col, right_col = st.columns([0.6, 0.6, 1.2, 1.0])
 
 import streamlit.components.v1 as components
 
