@@ -78,8 +78,20 @@ def make_empty_boards():
 
 
 # ---------------------------------------------------------
-# Globalny magazyn POKOI (wspólny tylko dla czatu)
-# rooms = { room_code: { "chat": [ {author, text}, ... ] } }
+# Globalny magazyn POKOI (wspólny tylko dla czatu i stanu gry)
+# rooms = {
+#   room_code: {
+#       "chat": [...],
+#       "players": {
+#           nickname: {
+#               "ready": bool,
+#               "green_locked": dict | None
+#           },
+#       },
+#       "game_over": bool,
+#       "winner": str | None
+#   }
+# }
 # ---------------------------------------------------------
 @st.cache_resource
 def get_rooms():
@@ -87,6 +99,52 @@ def get_rooms():
 
 
 rooms = get_rooms()
+
+
+def ensure_room(room_code: str):
+    if room_code not in rooms:
+        rooms[room_code] = {
+            "chat": [],
+            "players": {},
+            "game_over": False,
+            "winner": None,
+        }
+    return rooms[room_code]
+
+
+def ensure_player_entry(room_data, nickname: str):
+    players = room_data.setdefault("players", {})
+    if nickname not in players:
+        players[nickname] = {
+            "ready": False,
+            "green_locked": None,
+        }
+    return players[nickname]
+
+
+def boards_equal(b1, b2, tol=1e-6):
+    """Porównuje dwa stany planszy (pozycje/obroty figur)."""
+    if b1 is None or b2 is None:
+        return False
+    keys = [
+        "y_cx", "y_cy", "y_ori",
+        "w_cx", "w_cy", "w_ori",
+        "b_cx", "b_cy", "b_ori",
+        "s_cx", "s_cy", "s_ori",
+        "r_cx", "r_cy", "r_ori", "r_flip",
+        "t2_cx", "t2_cy", "t2_ori",
+        "lb_x", "lb_y",
+    ]
+    for k in keys:
+        v1 = b1.get(k)
+        v2 = b2.get(k)
+        if isinstance(v1, float) or isinstance(v2, float):
+            if v1 is None or v2 is None or abs(v1 - v2) > tol:
+                return False
+        else:
+            if v1 != v2:
+                return False
+    return True
 
 
 # ---------------------------------------------------------
@@ -142,18 +200,15 @@ if not nick_clean:
 st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
 
-# Autoodświeżanie całej appki co 1.5 s (czat i ruchy przeciwnika)
+# Autoodświeżanie całej appki co 1.5 s (czat + stan gry)
 st_autorefresh(interval=1500, key="chat_autorefresh")
 
 # ---------------------------------------------------------
-# Inicjalizacja pokoju (dla czatu)
+# Inicjalizacja pokoju i gracza
 # ---------------------------------------------------------
-if room_code not in rooms:
-    rooms[room_code] = {
-        "chat": [],
-    }
-
-room_data = rooms[room_code]
+room_data = ensure_room(room_code)
+player_entry = ensure_player_entry(room_data, nickname)
+players = room_data["players"]
 
 # ---------------------------------------------------------
 # Inicjalizacja prywatnych plansz w sesji
@@ -556,10 +611,21 @@ def send_message():
         return
     room_code_local = st.session_state.room_code
     rooms_local = get_rooms()
-    room_data_local = rooms_local[room_code_local]
+    room_data_local = ensure_room(room_code_local)
     chat_log_local = room_data_local.setdefault("chat", [])
     nickname_local = st.session_state.nickname
     chat_log_local.append({"author": nickname_local, "text": txt})
+
+
+# ---------------------------------------------------------
+# Pasek info o zakończeniu gry
+# ---------------------------------------------------------
+if room_data["game_over"]:
+    w = room_data["winner"]
+    if w == nickname:
+        st.success("Gra zakończona. Wygrałeś!")
+    else:
+        st.warning(f"Gra zakończona. Wygrał {w}.")
 
 
 # ---------------------------------------------------------
@@ -584,6 +650,8 @@ with right_col:
             text = msg.get("text", "")
             if author == nickname:
                 bg = "#ffffff"
+            elif author == "SYSTEM":
+                bg = "#dddddd"
             else:
                 bg = "#f3e6ff"  # jasnofioletowe tło dla przeciwnika
             html = f"""
@@ -798,8 +866,8 @@ with controls_col2:
 
     st.markdown("---")
 
-    # ---------------- PRZYCISK SPRAWDZANIA UKŁADU ----------------
-    figure_header(controls_col2, "Sprawdzenie ułożenia", "#ffffff", black_override=True)
+    # ---------------- PRZYCISK SPRAWDZANIA UKŁADU (dla aktualnej planszy) ----------------
+    figure_header(controls_col2, "Sprawdzenie ułożenia (aktualna plansza)", "#ffffff", black_override=True)
 
     row_check = st.columns([1, 0.2])
 
@@ -827,18 +895,16 @@ with controls_col2:
 
 
 # ---------------------------------------------------------
-# Plansza – prawa duża kolumna + przycisk przełączania obok tytułu
+# Plansza – prawa duża kolumna + przycisk przełączania + START/ZAKOŃCZ/RESTART
 # ---------------------------------------------------------
 with board_col:
-    title_col, btn_col = st.columns([0.8, 0.2])
-
-    with title_col:
+    title_row = st.columns([0.7, 0.3])
+    with title_row[0]:
         st.markdown(
             f"<h2 style='text-align:center; margin-top:0;'>{board_title}</h2>",
             unsafe_allow_html=True,
         )
-
-    with btn_col:
+    with title_row[1]:
         st.markdown("&nbsp;")
         if st.button("Przełącz planszę", key="switch_board"):
             if st.session_state.current_board == "zielona":
@@ -849,3 +915,103 @@ with board_col:
 
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
+
+    # -------------------- RESTART & START/ZAKOŃCZ --------------------
+    btn_row = st.columns(2)
+
+    # Czy wszyscy aktywni gracze są gotowi (po START)?
+    other_players = [n for n in players.keys() if n != nickname]
+    all_ready = (
+        len(players) >= 2
+        and all(p["ready"] for p in players.values())
+    )
+
+    # RESTART – resetuje grę w pokoju + Twoje plansze
+    with btn_row[0]:
+        if st.button("RESTART", key="restart_btn"):
+            # Reset Twoich plansz
+            st.session_state.boards = make_empty_boards()
+            st.session_state.current_board = "zielona"
+
+            # Reset stanu gry w pokoju
+            room_data["game_over"] = False
+            room_data["winner"] = None
+            for p in players.values():
+                p["ready"] = False
+                p["green_locked"] = None
+
+            room_data["chat"].append({
+                "author": "SYSTEM",
+                "text": f"{nickname} zresetował grę.",
+            })
+            st.experimental_rerun()
+
+    # START / ZAKOŃCZ
+    with btn_row[1]:
+        if room_data["game_over"]:
+            st.button("Gra zakończona", disabled=True, key="game_over_btn")
+        else:
+            # START – jeśli jeszcze nie gotowy
+            if not player_entry["ready"]:
+                if st.button("START", key="start_btn"):
+                    # Sprawdzamy Twoją zieloną planszę
+                    my_green = boards["zielona"]
+                    valid, msg = check_layout(my_green)
+                    my_green["layout_valid"] = valid
+                    my_green["layout_msg"] = msg
+
+                    if not valid:
+                        st.error(msg)
+                    else:
+                        # Zapisujemy zamrożoną wersję Twojej zielonej planszy
+                        player_entry["ready"] = True
+                        player_entry["green_locked"] = dict(my_green)
+                        room_data["chat"].append({
+                            "author": "SYSTEM",
+                            "text": f"{nickname} zakończył ustawianie swojej planszy.",
+                        })
+                        st.experimental_rerun()
+            else:
+                # Już kliknąłeś START
+                label = "ZAKOŃCZ"
+                disabled = not all_ready
+                help_text = None
+                if not all_ready:
+                    help_text = "Czekaj, aż przeciwnik też kliknie START."
+
+                if st.button(label, key="finish_btn", disabled=disabled):
+                    # Koniec gry – porównujemy Twoją fioletową z zieloną przeciwnika
+                    if not other_players:
+                        room_data["chat"].append({
+                            "author": "SYSTEM",
+                            "text": "Nie ma przeciwnika w pokoju – nie można zakończyć gry.",
+                        })
+                    else:
+                        opp_name = sorted(other_players)[0]
+                        opp_entry = players[opp_name]
+                        true_board = opp_entry.get("green_locked")
+
+                        if true_board is None:
+                            room_data["chat"].append({
+                                "author": "SYSTEM",
+                                "text": f"Przeciwnik {opp_name} nie zatwierdził jeszcze swojej planszy.",
+                            })
+                        else:
+                            guess_board = boards["fioletowa"]
+                            if boards_equal(guess_board, true_board):
+                                winner = nickname
+                            else:
+                                winner = opp_name
+
+                            room_data["game_over"] = True
+                            room_data["winner"] = winner
+                            room_data["chat"].append({
+                                "author": "SYSTEM",
+                                "text": f"Gra zakończona. Wygrał {winner}. (Zakończył {nickname}.)",
+                            })
+                            st.experimental_rerun()
+
+                if help_text and not disabled:
+                    st.caption(help_text)
+                elif help_text and disabled:
+                    st.caption(help_text)
