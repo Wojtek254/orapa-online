@@ -142,7 +142,7 @@ st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
 
 # Autoodświeżanie całej appki co 1 sekundę (dla czatu / ruchów)
-st_autorefresh(interval=1500, key="chat_autorefresh")
+st_autorefresh(interval=500, key="chat_autorefresh")
 
 # ---------------------------------------------------------
 # Inicjalizacja stanu gry dla pokoju
