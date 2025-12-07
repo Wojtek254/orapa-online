@@ -645,55 +645,68 @@ if room_data["game_over"]:
 # ---------------------------------------------------------
 controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
 
-# PRAWY BOK: czat
+import streamlit.components.v1 as components
+
 with right_col:
     st.markdown("### Czat pokoju")
 
     chat_log = room_data.setdefault("chat", [])
 
-    # zbuduj HTML dla wszystkich wiadomości
+    # budujemy HTML wiadomości
     chat_items_html = ""
-    for msg in chat_log[-100:]:
+    for msg in chat_log[-200:]:
         author = msg.get("author", "Anonim")
         text = msg.get("text", "")
 
         if author == nickname:
-            bg = "#ffffff"      # moje
+            bg = "#ffffff"
         elif author == "SYSTEM":
-            bg = "#dddddd"      # system
+            bg = "#dddddd"
         else:
-            bg = "#f3e6ff"      # przeciwnik
+            bg = "#f3e6ff"
 
         chat_items_html += f"""
-<div style="background-color:{bg}; padding:6px 8px; margin-bottom:4px;
-            border-radius:6px; font-size:0.9rem;">
-    <strong>{author}:</strong> {text}
-</div>
-"""
+        <div style="
+            background-color:{bg};
+            padding:6px 8px;
+            margin-bottom:4px;
+            border-radius:6px;
+            font-size:0.9rem;">
+            <strong>{author}:</strong> {text}
+        </div>
+        """
 
-    # scrollbox + JS autoscroll
-    scrollbox_html = f"""
-<div id="chat-box" style="height:400px; overflow-y:auto; padding:6px;
-            border:1px solid #cccccc; border-radius:6px;
-            background-color:#fdfdfd;">
-    {chat_items_html}
-</div>
-<script>
-    var chatBox = document.getElementById('chat-box');
+    # pełny komponent HTML z autoscrollem
+    full_html = f"""
+    <div id="chat-box" style="
+        height:800px;
+        overflow-y:auto;
+        padding:6px;
+        border:1px solid #cccccc;
+        border-radius:6px;
+        background-color:#fdfdfd;
+    ">
+        {chat_items_html}
+    </div>
+
+    <script>
+    // Poczekaj aż komponent się w pełni wyświetli
+    const chatBox = document.getElementById("chat-box");
     if (chatBox) {{
         chatBox.scrollTop = chatBox.scrollHeight;
     }}
-</script>
-"""
+    </script>
+    """
 
-    st.markdown(scrollbox_html, unsafe_allow_html=True)
+    components.html(full_html, height=420, scrolling=False)
 
-    # input – Enter wysyła, po wysłaniu send_message czyści pole
+    # pole wpisywania – Enter wysyła, send_message czyści input
     st.text_input(
         "Twoja wiadomość (Enter wysyła)",
         key="chat_input",
         on_change=send_message,
     )
+
 
 
 
