@@ -7,7 +7,7 @@ from shapely.geometry import Polygon
 from streamlit_autorefresh import st_autorefresh
 
 # ---------------------------------------------------------
-# Konfiguracja plansz (dwa światy)
+# Konfiguracja plansz (dwa widoki)
 # ---------------------------------------------------------
 BOARD_CONFIGS = {
     "zielona": {
@@ -31,60 +31,77 @@ COLS = 10
 
 
 # ---------------------------------------------------------
-# Funkcja tworząca "puste" plansze (dla nowej gry/pokoju)
+# Funkcja tworząca STAN JEDNEJ PLANSZY
 # ---------------------------------------------------------
-def make_empty_boards():
-    boards = {}
-    for key in BOARD_CONFIGS.keys():
-        boards[key] = {
-            # Żółty trójkąt
-            "y_cx": 3.0,
-            "y_cy": 3.0,
-            "y_ori": 0,
-            # Biały trójkąt
-            "w_cx": 3.0,
-            "w_cy": 5.0,
-            "w_ori": 0,
-            # Niebieski trójkąt
-            "b_cx": 7.0,
-            "b_cy": 3.0,
-            "b_ori": 0,
-            # Biały kwadrat (romb)
-            "s_cx": 6.0,
-            "s_cy": 6.0,
-            "s_ori": 0,
-            # Czerwony równoległobok
-            "r_cx": 4.0,
-            "r_cy": 2.0,
-            "r_ori": 0,
-            "r_flip": False,
-            # Przezroczysty trójkąt (hyp = 2)
-            "t2_cx": 2.0,
-            "t2_cy": 2.0,
-            "t2_ori": 0,
-            # Jasnoniebieski kwadrat 1x1
-            "lb_x": 1.0,
-            "lb_y": 1.0,
-            # Status sprawdzania
-            "layout_valid": None,
-            "layout_msg": "",
-        }
-    return boards
+def make_empty_board():
+    return {
+        # Żółty trójkąt
+        "y_cx": 3.0,
+        "y_cy": 3.0,
+        "y_ori": 0,
+        # Biały trójkąt
+        "w_cx": 3.0,
+        "w_cy": 5.0,
+        "w_ori": 0,
+        # Niebieski trójkąt
+        "b_cx": 7.0,
+        "b_cy": 3.0,
+        "b_ori": 0,
+        # Biały kwadrat (romb)
+        "s_cx": 6.0,
+        "s_cy": 6.0,
+        "s_ori": 0,
+        # Czerwony równoległobok
+        "r_cx": 4.0,
+        "r_cy": 2.0,
+        "r_ori": 0,
+        "r_flip": False,
+        # Przezroczysty trójkąt (hyp = 2)
+        "t2_cx": 2.0,
+        "t2_cy": 2.0,
+        "t2_ori": 0,
+        # Jasnoniebieski kwadrat 1x1
+        "lb_x": 1.0,
+        "lb_y": 1.0,
+        # Status sprawdzania
+        "layout_valid": None,
+        "layout_msg": "",
+    }
 
 
 # ---------------------------------------------------------
 # Globalny "magazyn" pokoi (wspólny dla wszystkich sesji)
+# rooms = {
+#   room_code: {
+#       "boards": { nickname: board_state, ... },
+#       "chat":   [ {author, text}, ... ]
+#   }
+# }
 # ---------------------------------------------------------
 @st.cache_resource
 def get_rooms():
-    """
-    Zwraca globalny słownik pokoi.
-    Klucz: room_code (str), wartość: {"boards": ..., "chat": [...] }.
-    """
     return {}
 
 
 rooms = get_rooms()
+
+
+def ensure_player_board(room_data, nickname: str):
+    boards = room_data.setdefault("boards", {})
+    if nickname not in boards:
+        boards[nickname] = make_empty_board()
+    return boards[nickname]
+
+
+def get_opponent_board(room_data, nickname: str):
+    boards = room_data.get("boards", {})
+    others = [n for n in boards.keys() if n != nickname]
+    if not others:
+        return None, None
+    # na razie bierzemy pierwszego z listy (alfabetycznie)
+    opp = sorted(others)[0]
+    return opp, boards[opp]
+
 
 # ---------------------------------------------------------
 # Konfiguracja strony
@@ -107,13 +124,11 @@ if "room_input" not in st.session_state:
 if "room_code" not in st.session_state:
     st.session_state.room_code = ""
 
-room_col = st.container()
-with room_col:
-    room_input = st.text_input(
-        "Kod pokoju (umów się z drugim graczem, np. ABC123)",
-        value=st.session_state.room_input,
-        key="room_input",
-    )
+room_input = st.text_input(
+    "Kod pokoju (umów się z drugim graczem, np. ABC123)",
+    value=st.session_state.room_input,
+    key="room_input",
+)
 
 room_code = room_input.strip()
 st.session_state.room_code = room_code
@@ -141,21 +156,24 @@ if not nick_clean:
 st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
 
-# Autoodświeżanie całej appki co 1 sekundę (dla czatu / ruchów)
-st_autorefresh(interval=500, key="chat_autorefresh")
+# Autoodświeżanie całej appki co 1.5 sekundy (dla czatu / ruchów przeciwnika)
+st_autorefresh(interval=1500, key="chat_autorefresh")
 
 # ---------------------------------------------------------
 # Inicjalizacja stanu gry dla pokoju
 # ---------------------------------------------------------
 if room_code not in rooms:
     rooms[room_code] = {
-        "boards": make_empty_boards(),
+        "boards": {},
         "chat": [],
     }
 
 room_data = rooms[room_code]
 
-# Aktualna plansza (zielona/fioletowa) w ramach sesji
+# Twoja własna plansza (zawsze istnieje po tym kroku)
+my_board = ensure_player_board(room_data, nickname)
+
+# Aktualny widok (zielona / fioletowa)
 if "current_board" not in st.session_state:
     st.session_state.current_board = "zielona"
 
@@ -404,8 +422,7 @@ def check_layout(state):
 # Rysowanie planszy
 # ---------------------------------------------------------
 def draw_board(state, bg_color):
-    # trochę mniejsza plansza, żeby zrobić miejsce na czat
-    fig, ax = plt.subplots(figsize=(5.5, 5))
+    fig, ax = plt.subplots(figsize=(5, 5))
 
     fig.patch.set_facecolor(bg_color)
     ax.set_facecolor(bg_color)
@@ -413,7 +430,6 @@ def draw_board(state, bg_color):
     ax.set_xlim(-0.5, COLS + 0.5)
     ax.set_ylim(-0.5, ROWS + 0.5)
 
-    # Siatka
     for x in range(COLS + 1):
         ax.plot([x, x], [0, ROWS], color="white", linewidth=1, zorder=0)
     for y in range(ROWS + 1):
@@ -422,7 +438,6 @@ def draw_board(state, bg_color):
     def row_y(r):
         return ROWS - 0.5 - r
 
-    # Podpisy
     for x in range(COLS):
         ax.text(
             x + 0.5, ROWS + 0.45, str(x + 1),
@@ -552,26 +567,45 @@ def send_message():
     chat_log_local = room_data_local.setdefault("chat", [])
     nickname_local = st.session_state.nickname
     chat_log_local.append({"author": nickname_local, "text": txt})
-    # nie czyścimy chat_input, Streamlit sam zarządza on_change
 
 
 # ---------------------------------------------------------
-# Layout: dwie kolumny sterowania + plansza + prawa kolumna
+# Ustalenie, którą planszę wyświetlamy (Twoja / przeciwnika)
+# ---------------------------------------------------------
+board_view = st.session_state.current_board  # "zielona" albo "fioletowa"
+
+if board_view == "zielona":
+    # Twoja plansza – pełne sterowanie
+    state = my_board
+    controls_enabled = True
+    BG_COLOR = BOARD_CONFIGS["zielona"]["bg"]
+    board_title = BOARD_CONFIGS["zielona"]["label"]
+else:
+    # Plansza przeciwnika – tylko podgląd
+    opp_nick, opp_board = get_opponent_board(room_data, nickname)
+    if opp_board is None:
+        # Brak przeciwnika – pokazujemy Twoją planszę, ale bez sterowania
+        state = my_board
+        controls_enabled = False
+        info_no_opp = True
+    else:
+        state = opp_board
+        controls_enabled = False
+        info_no_opp = False
+    BG_COLOR = BOARD_CONFIGS["fioletowa"]["bg"]
+    board_title = BOARD_CONFIGS["fioletowa"]["label"]
+
+# ---------------------------------------------------------
+# Layout: dwie kolumny sterowania + plansza + prawa kolumna (czat)
 # ---------------------------------------------------------
 controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
 
-# Pozycja planszy i tła
-board_key = st.session_state.current_board
-BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
-state = room_data["boards"][board_key]
-
-# Prawa kolumna: CZAT (scroll) – bez przycisku przełączania
+# PRAWY BOK: czat
 with right_col:
     st.markdown("### Czat pokoju")
 
     chat_log = room_data.setdefault("chat", [])
 
-    # Scrollowalne okno na wiadomości
     st.markdown(
         "<div style='max-height: 400px; overflow-y: auto; padding-right: 4px;'>",
         unsafe_allow_html=True,
@@ -581,11 +615,10 @@ with right_col:
         for msg in chat_log[-100:]:
             author = msg.get("author", "Anonim")
             text = msg.get("text", "")
-            # moje wiadomości – białe tło, przeciwnika – jasnofioletowe
             if author == nickname:
                 bg = "#ffffff"
             else:
-                bg = "#f3e6ff"  # jasnofioletowe
+                bg = "#f3e6ff"  # jasnofioletowe tło dla przeciwnika
             html = f"""
             <div style="
                 background-color:{bg};
@@ -606,42 +639,41 @@ with right_col:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Pole wpisywania – Enter wysyła
     st.text_input(
         "Twoja wiadomość (Enter wysyła)",
         key="chat_input",
         on_change=send_message,
     )
 
-
-# =====================================================================
-#                   KOLUMNA STEROWANIA 1
-# =====================================================================
+# ---------------------------------------------------------
+# KOLUMNA STEROWANIA 1 – przyciski działają tylko gdy controls_enabled
+# ---------------------------------------------------------
 with controls_col1:
 
     # ---------------- Żółty trójkąt ----------------
     figure_header(controls_col1, "Żółty trójkąt", "#ffd000")
 
     row_y1 = st.columns(3)
-    if row_y1[0].button(f"{Y_ICON}⟲", key="y_rot_left"):
+    if controls_enabled and row_y1[0].button(f"{Y_ICON}⟲", key="y_rot_left"):
         state["y_ori"] = (state["y_ori"] + 1) % 4
-    if row_y1[1].button(f"{Y_ICON}⬆️", key="y_up"):
+    if controls_enabled and row_y1[1].button(f"{Y_ICON}⬆️", key="y_up"):
         state["y_cy"] += 1
-    if row_y1[2].button(f"{Y_ICON}⟳", key="y_rot_right"):
+    if controls_enabled and row_y1[2].button(f"{Y_ICON}⟳", key="y_rot_right"):
         state["y_ori"] = (state["y_ori"] - 1) % 4
 
     row_y2 = st.columns(3)
-    if row_y2[0].button(f"{Y_ICON}⬅️", key="y_left"):
+    if controls_enabled and row_y2[0].button(f"{Y_ICON}⬅️", key="y_left"):
         state["y_cx"] -= 1
-    if row_y2[1].button(f"{Y_ICON}⬇️", key="y_down"):
+    if controls_enabled and row_y2[1].button(f"{Y_ICON}⬇️", key="y_down"):
         state["y_cy"] -= 1
-    if row_y2[2].button(f"{Y_ICON}➡️", key="y_right"):
+    if controls_enabled and row_y2[2].button(f"{Y_ICON}➡️", key="y_right"):
         state["y_cx"] += 1
 
-    state["y_cx"], state["y_cy"] = clamp_center(
-        state["y_cx"], state["y_cy"],
-        state["y_ori"], yellow_vertices
-    )
+    if controls_enabled:
+        state["y_cx"], state["y_cy"] = clamp_center(
+            state["y_cx"], state["y_cy"],
+            state["y_ori"], yellow_vertices
+        )
 
     st.markdown("---")
 
@@ -649,25 +681,26 @@ with controls_col1:
     figure_header(controls_col1, "Biały trójkąt", "#ffffff", black_override=True)
 
     row_w1 = st.columns(3)
-    if row_w1[0].button(f"{W_ICON}⟲", key="w_rot_left"):
+    if controls_enabled and row_w1[0].button(f"{W_ICON}⟲", key="w_rot_left"):
         state["w_ori"] = (state["w_ori"] + 1) % 4
-    if row_w1[1].button(f"{W_ICON}⬆️", key="w_up"):
+    if controls_enabled and row_w1[1].button(f"{W_ICON}⬆️", key="w_up"):
         state["w_cy"] += 1
-    if row_w1[2].button(f"{W_ICON}⟳", key="w_rot_right"):
+    if controls_enabled and row_w1[2].button(f"{W_ICON}⟳", key="w_rot_right"):
         state["w_ori"] = (state["w_ori"] - 1) % 4
 
     row_w2 = st.columns(3)
-    if row_w2[0].button(f"{W_ICON}⬅️", key="w_left"):
+    if controls_enabled and row_w2[0].button(f"{W_ICON}⬅️", key="w_left"):
         state["w_cx"] -= 1
-    if row_w2[1].button(f"{W_ICON}⬇️", key="w_down"):
+    if controls_enabled and row_w2[1].button(f"{W_ICON}⬇️", key="w_down"):
         state["w_cy"] -= 1
-    if row_w2[2].button(f"{W_ICON}➡️", key="w_right"):
+    if controls_enabled and row_w2[2].button(f"{W_ICON}➡️", key="w_right"):
         state["w_cx"] += 1
 
-    state["w_cx"], state["w_cy"] = clamp_center(
-        state["w_cx"], state["w_cy"],
-        state["w_ori"], small_tri_vertices
-    )
+    if controls_enabled:
+        state["w_cx"], state["w_cy"] = clamp_center(
+            state["w_cx"], state["w_cy"],
+            state["w_ori"], small_tri_vertices
+        )
 
     st.markdown("---")
 
@@ -675,25 +708,26 @@ with controls_col1:
     figure_header(controls_col1, "Niebieski trójkąt", "#3399ff")
 
     row_b1 = st.columns(3)
-    if row_b1[0].button(f"{B_ICON}⟲", key="b_rot_left"):
+    if controls_enabled and row_b1[0].button(f"{B_ICON}⟲", key="b_rot_left"):
         state["b_ori"] = (state["b_ori"] + 1) % 4
-    if row_b1[1].button(f"{B_ICON}⬆️", key="b_up"):
+    if controls_enabled and row_b1[1].button(f"{B_ICON}⬆️", key="b_up"):
         state["b_cy"] += 1
-    if row_b1[2].button(f"{B_ICON}⟳", key="b_rot_right"):
+    if controls_enabled and row_b1[2].button(f"{B_ICON}⟳", key="b_rot_right"):
         state["b_ori"] = (state["b_ori"] - 1) % 4
 
     row_b2 = st.columns(3)
-    if row_b2[0].button(f"{B_ICON}⬅️", key="b_left"):
+    if controls_enabled and row_b2[0].button(f"{B_ICON}⬅️", key="b_left"):
         state["b_cx"] -= 1
-    if row_b2[1].button(f"{B_ICON}⬇️", key="b_down"):
+    if controls_enabled and row_b2[1].button(f"{B_ICON}⬇️", key="b_down"):
         state["b_cy"] -= 1
-    if row_b2[2].button(f"{B_ICON}➡️", key="b_right"):
+    if controls_enabled and row_b2[2].button(f"{B_ICON}➡️", key="b_right"):
         state["b_cx"] += 1
 
-    state["b_cx"], state["b_cy"] = clamp_center(
-        state["b_cx"], state["b_cy"],
-        state["b_ori"], small_tri_vertices
-    )
+    if controls_enabled:
+        state["b_cx"], state["b_cy"] = clamp_center(
+            state["b_cx"], state["b_cy"],
+            state["b_ori"], small_tri_vertices
+        )
 
     st.markdown("---")
 
@@ -701,46 +735,48 @@ with controls_col1:
     figure_header(controls_col1, "Jasnoniebieski kwadrat", "#66c2ff")
 
     row_lb1 = st.columns(3)
-    if row_lb1[1].button(f"{B_ICON}⬆️", key="lb_up"):
+    if controls_enabled and row_lb1[1].button(f"{B_ICON}⬆️", key="lb_up"):
         state["lb_y"] += 1
 
     row_lb2 = st.columns(3)
-    if row_lb2[0].button(f"{B_ICON}⬅️", key="lb_left"):
+    if controls_enabled and row_lb2[0].button(f"{B_ICON}⬅️", key="lb_left"):
         state["lb_x"] -= 1
-    if row_lb2[1].button(f"{B_ICON}⬇️", key="lb_down"):
+    if controls_enabled and row_lb2[1].button(f"{B_ICON}⬇️", key="lb_down"):
         state["lb_y"] -= 1
-    if row_lb2[2].button(f"{B_ICON}➡️", key="lb_right"):
+    if controls_enabled and row_lb2[2].button(f"{B_ICON}➡️", key="lb_right"):
         state["lb_x"] += 1
 
-    state["lb_x"], state["lb_y"] = clamp_lightblue(
-        state["lb_x"], state["lb_y"]
-    )
+    if controls_enabled:
+        state["lb_x"], state["lb_y"] = clamp_lightblue(
+            state["lb_x"], state["lb_y"]
+        )
 
 
-# =====================================================================
-#                   KOLUMNA STEROWANIA 2
-# =====================================================================
+# ---------------------------------------------------------
+# KOLUMNA STEROWANIA 2
+# ---------------------------------------------------------
 with controls_col2:
 
     # ---------------- Biały kwadrat ----------------
     figure_header(controls_col2, "Biały kwadrat", "#ffffff", black_override=True)
 
     row_s1 = st.columns(3)
-    if row_s1[1].button(f"{W_ICON}⬆️", key="s_up"):
+    if controls_enabled and row_s1[1].button(f"{W_ICON}⬆️", key="s_up"):
         state["s_cy"] += 1
 
     row_s2 = st.columns(3)
-    if row_s2[0].button(f"{W_ICON}⬅️", key="s_left"):
+    if controls_enabled and row_s2[0].button(f"{W_ICON}⬅️", key="s_left"):
         state["s_cx"] -= 1
-    if row_s2[1].button(f"{W_ICON}⬇️", key="s_down"):
+    if controls_enabled and row_s2[1].button(f"{W_ICON}⬇️", key="s_down"):
         state["s_cy"] -= 1
-    if row_s2[2].button(f"{W_ICON}➡️", key="s_right"):
+    if controls_enabled and row_s2[2].button(f"{W_ICON}➡️", key="s_right"):
         state["s_cx"] += 1
 
-    state["s_cx"], state["s_cy"] = clamp_center(
-        state["s_cx"], state["s_cy"],
-        state["s_ori"], square_diamond_vertices
-    )
+    if controls_enabled:
+        state["s_cx"], state["s_cy"] = clamp_center(
+            state["s_cx"], state["s_cy"],
+            state["s_ori"], square_diamond_vertices
+        )
 
     st.markdown("---")
 
@@ -748,27 +784,28 @@ with controls_col2:
     figure_header(controls_col2, "Czerwony równoległobok", "#ff3333")
 
     row_r1 = st.columns(4)
-    if row_r1[0].button(f"{R_ICON}⟲", key="r_rot_left"):
+    if controls_enabled and row_r1[0].button(f"{R_ICON}⟲", key="r_rot_left"):
         state["r_ori"] = (state["r_ori"] + 1) % 4
-    if row_r1[1].button(f"{R_ICON}⬆️", key="r_up"):
+    if controls_enabled and row_r1[1].button(f"{R_ICON}⬆️", key="r_up"):
         state["r_cy"] += 1
-    if row_r1[2].button(f"{R_ICON}⟳", key="r_rot_right"):
+    if controls_enabled and row_r1[2].button(f"{R_ICON}⟳", key="r_rot_right"):
         state["r_ori"] = (state["r_ori"] - 1) % 4
-    if row_r1[3].button(f"{R_ICON}🔁", key="r_flip_btn"):
+    if controls_enabled and row_r1[3].button(f"{R_ICON}🔁", key="r_flip_btn"):
         state["r_flip"] = not state["r_flip"]
 
     row_r2 = st.columns(3)
-    if row_r2[0].button(f"{R_ICON}⬅️", key="r_left"):
+    if controls_enabled and row_r2[0].button(f"{R_ICON}⬅️", key="r_left"):
         state["r_cx"] -= 1
-    if row_r2[1].button(f"{R_ICON}⬇️", key="r_down"):
+    if controls_enabled and row_r2[1].button(f"{R_ICON}⬇️", key="r_down"):
         state["r_cy"] -= 1
-    if row_r2[2].button(f"{R_ICON}➡️", key="r_right"):
+    if controls_enabled and row_r2[2].button(f"{R_ICON}➡️", key="r_right"):
         state["r_cx"] += 1
 
-    state["r_cx"], state["r_cy"] = clamp_parallelogram(
-        state["r_cx"], state["r_cy"],
-        state["r_ori"], state["r_flip"]
-    )
+    if controls_enabled:
+        state["r_cx"], state["r_cy"] = clamp_parallelogram(
+            state["r_cx"], state["r_cy"],
+            state["r_ori"], state["r_flip"]
+        )
 
     st.markdown("---")
 
@@ -777,41 +814,42 @@ with controls_col2:
                   BG_COLOR, black_override=True)
 
     row_t2_1 = st.columns(3)
-    if row_t2_1[0].button(f"{W_ICON}⟲", key="t2_rot_left"):
+    if controls_enabled and row_t2_1[0].button(f"{W_ICON}⟲", key="t2_rot_left"):
         state["t2_ori"] = (state["t2_ori"] + 1) % 4
-    if row_t2_1[1].button(f"{W_ICON}⬆️", key="t2_up"):
+    if controls_enabled and row_t2_1[1].button(f"{W_ICON}⬆️", key="t2_up"):
         state["t2_cy"] += 1
-    if row_t2_1[2].button(f"{W_ICON}⟳", key="t2_rot_right"):
+    if controls_enabled and row_t2_1[2].button(f"{W_ICON}⟳", key="t2_rot_right"):
         state["t2_ori"] = (state["t2_ori"] - 1) % 4
 
     row_t2_2 = st.columns(3)
-    if row_t2_2[0].button(f"{W_ICON}⬅️", key="t2_left"):
+    if controls_enabled and row_t2_2[0].button(f"{W_ICON}⬅️", key="t2_left"):
         state["t2_cx"] -= 1
-    if row_t2_2[1].button(f"{W_ICON}⬇️", key="t2_down"):
+    if controls_enabled and row_t2_2[1].button(f"{W_ICON}⬇️", key="t2_down"):
         state["t2_cy"] -= 1
-    if row_t2_2[2].button(f"{W_ICON}➡️", key="t2_right"):
+    if controls_enabled and row_t2_2[2].button(f"{W_ICON}➡️", key="t2_right"):
         state["t2_cx"] += 1
 
-    state["t2_cx"], state["t2_cy"] = clamp_center(
-        state["t2_cx"], state["t2_cy"],
-        state["t2_ori"], tri_hyp2_vertices
-    )
+    if controls_enabled:
+        state["t2_cx"], state["t2_cy"] = clamp_center(
+            state["t2_cx"], state["t2_cy"],
+            state["t2_ori"], tri_hyp2_vertices
+        )
 
     st.markdown("---")
 
-    # ---------------- PRZYCISK SPRAWDZANIA UKŁADU ----------------
-    figure_header(controls_col2, "Sprawdzenie ułożenia", "#ffffff", black_override=True)
+    # ---------------- PRZYCISK SPRAWDZANIA UKŁADU (dla Twojej planszy) ----------------
+    figure_header(controls_col2, "Sprawdzenie ułożenia (Twoja plansza)", "#ffffff", black_override=True)
 
     row_check = st.columns([1, 0.2])
 
     with row_check[0]:
-        if st.button("Sprawdź ułożenie", key="check_layout"):
-            valid, msg = check_layout(state)
-            state["layout_valid"] = valid
-            state["layout_msg"] = msg
+        if controls_enabled and st.button("Sprawdź ułożenie", key="check_layout"):
+            valid, msg = check_layout(my_board)
+            my_board["layout_valid"] = valid
+            my_board["layout_msg"] = msg
 
     with row_check[1]:
-        status = state["layout_valid"]
+        status = my_board["layout_valid"]
         if status is True:
             st.markdown("<span style='font-size: 1.8rem;'>✅</span>", unsafe_allow_html=True)
         elif status is False:
@@ -819,12 +857,12 @@ with controls_col2:
         else:
             st.markdown("<span style='font-size: 1.8rem;'>&nbsp;</span>", unsafe_allow_html=True)
 
-    if state["layout_valid"] is True:
-        st.success(state["layout_msg"])
-    elif state["layout_valid"] is False:
-        st.error(state["layout_msg"])
+    if my_board["layout_valid"] is True:
+        st.success(my_board["layout_msg"])
+    elif my_board["layout_valid"] is False:
+        st.error(my_board["layout_msg"])
     else:
-        st.markdown("_Kliknij przycisk, żeby sprawdzić ułożenie figur na tej planszy._")
+        st.markdown("_Kliknij przycisk, żeby sprawdzić ułożenie figury na Twojej planszy._")
 
 
 # ---------------------------------------------------------
@@ -834,7 +872,6 @@ with board_col:
     title_col, btn_col = st.columns([0.8, 0.2])
 
     with title_col:
-        board_title = BOARD_CONFIGS[board_key]["label"]
         st.markdown(
             f"<h2 style='text-align:center; margin-top:0;'>{board_title}</h2>",
             unsafe_allow_html=True,
@@ -849,6 +886,12 @@ with board_col:
                 st.session_state.current_board = "zielona"
             st.experimental_rerun()
 
+    if board_view == "fioletowa":
+        opp_nick, _ = get_opponent_board(room_data, nickname)
+        if opp_nick is None:
+            st.info("W pokoju nie ma jeszcze przeciwnika – widzisz swoją planszę.")
+        else:
+            st.markdown(f"<p style='text-align:center;'>Przeciwnik: <b>{opp_nick}</b></p>", unsafe_allow_html=True)
 
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
