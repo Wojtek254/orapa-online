@@ -696,19 +696,19 @@ with controls_col1:
     figure_header(controls_col1, "Żółty trójkąt", "#ffd000")
 
     row_y1 = st.columns(3)
-    if row_y1[0].button(f"{Y_ICON}⟲", key="y_rot_left"):
+    if controls_enabled and row_y1[0].button(f"{Y_ICON}⟲", key="y_rot_left"):
         state["y_ori"] = (state["y_ori"] + 1) % 4
-    if row_y1[1].button(f"{Y_ICON}⬆️", key="y_up"):
+    if controls_enabled and row_y1[1].button(f"{Y_ICON}⬆️", key="y_up"):
         state["y_cy"] += 1
-    if row_y1[2].button(f"{Y_ICON}⟳", key="y_rot_right"):
+    if controls_enabled and row_y1[2].button(f"{Y_ICON}⟳", key="y_rot_right"):
         state["y_ori"] = (state["y_ori"] - 1) % 4
 
     row_y2 = st.columns(3)
-    if row_y2[0].button(f"{Y_ICON}⬅️", key="y_left"):
+    if controls_enabled and row_y2[0].button(f"{Y_ICON}⬅️", key="y_left"):
         state["y_cx"] -= 1
-    if row_y2[1].button(f"{Y_ICON}⬇️", key="y_down"):
+    if controls_enabled and row_y2[1].button(f"{Y_ICON}⬇️", key="y_down"):
         state["y_cy"] -= 1
-    if row_y2[2].button(f"{Y_ICON}➡️", key="y_right"):
+    if controls_enabled and row_y2[2].button(f"{Y_ICON}➡️", key="y_right"):
         state["y_cx"] += 1
 
     state["y_cx"], state["y_cy"] = clamp_center(
@@ -722,19 +722,19 @@ with controls_col1:
     figure_header(controls_col1, "Biały trójkąt", "#ffffff", black_override=True)
 
     row_w1 = st.columns(3)
-    if row_w1[0].button(f"{W_ICON}⟲", key="w_rot_left"):
+    if controls_enabled and row_w1[0].button(f"{W_ICON}⟲", key="w_rot_left"):
         state["w_ori"] = (state["w_ori"] + 1) % 4
-    if row_w1[1].button(f"{W_ICON}⬆️", key="w_up"):
+    if controls_enabled and row_w1[1].button(f"{W_ICON}⬆️", key="w_up"):
         state["w_cy"] += 1
-    if row_w1[2].button(f"{W_ICON}⟳", key="w_rot_right"):
+    if controls_enabled and row_w1[2].button(f"{W_ICON}⟳", key="w_rot_right"):
         state["w_ori"] = (state["w_ori"] - 1) % 4
 
     row_w2 = st.columns(3)
-    if row_w2[0].button(f"{W_ICON}⬅️", key="w_left"):
+    if controls_enabled and row_w2[0].button(f"{W_ICON}⬅️", key="w_left"):
         state["w_cx"] -= 1
-    if row_w2[1].button(f"{W_ICON}⬇️", key="w_down"):
+    if controls_enabled and row_w2[1].button(f"{W_ICON}⬇️", key="w_down"):
         state["w_cy"] -= 1
-    if row_w2[2].button(f"{W_ICON}➡️", key="w_right"):
+    if controls_enabled and row_w2[2].button(f"{W_ICON}➡️", key="w_right"):
         state["w_cx"] += 1
 
     state["w_cx"], state["w_cy"] = clamp_center(
@@ -748,19 +748,19 @@ with controls_col1:
     figure_header(controls_col1, "Niebieski trójkąt", "#3399ff")
 
     row_b1 = st.columns(3)
-    if row_b1[0].button(f"{B_ICON}⟲", key="b_rot_left"):
+    if controls_enabled and row_b1[0].button(f"{B_ICON}⟲", key="b_rot_left"):
         state["b_ori"] = (state["b_ori"] + 1) % 4
-    if row_b1[1].button(f"{B_ICON}⬆️", key="b_up"):
+    if controls_enabled and row_b1[1].button(f"{B_ICON}⬆️", key="b_up"):
         state["b_cy"] += 1
-    if row_b1[2].button(f"{B_ICON}⟳", key="b_rot_right"):
+    if controls_enabled and row_b1[2].button(f"{B_ICON}⟳", key="b_rot_right"):
         state["b_ori"] = (state["b_ori"] - 1) % 4
 
     row_b2 = st.columns(3)
-    if row_b2[0].button(f"{B_ICON}⬅️", key="b_left"):
+    if controls_enabled and row_b2[0].button(f"{B_ICON}⬅️", key="b_left"):
         state["b_cx"] -= 1
-    if row_b2[1].button(f"{B_ICON}⬇️", key="b_down"):
+    if controls_enabled and row_b2[1].button(f"{B_ICON}⬇️", key="b_down"):
         state["b_cy"] -= 1
-    if row_b2[2].button(f"{B_ICON}➡️", key="b_right"):
+    if controls_enabled and row_b2[2].button(f"{B_ICON}➡️", key="b_right"):
         state["b_cx"] += 1
 
     state["b_cx"], state["b_cy"] = clamp_center(
@@ -774,15 +774,15 @@ with controls_col1:
     figure_header(controls_col1, "Jasnoniebieski kwadrat", "#66c2ff")
 
     row_lb1 = st.columns(3)
-    if row_lb1[1].button(f"{B_ICON}⬆️", key="lb_up"):
+    if controls_enabled and row_lb1[1].button(f"{B_ICON}⬆️", key="lb_up"):
         state["lb_y"] += 1
 
     row_lb2 = st.columns(3)
-    if row_lb2[0].button(f"{B_ICON}⬅️", key="lb_left"):
+    if controls_enabled and row_lb2[0].button(f"{B_ICON}⬅️", key="lb_left"):
         state["lb_x"] -= 1
-    if row_lb2[1].button(f"{B_ICON}⬇️", key="lb_down"):
+    if controls_enabled and row_lb2[1].button(f"{B_ICON}⬇️", key="lb_down"):
         state["lb_y"] -= 1
-    if row_lb2[2].button(f"{B_ICON}➡️", key="lb_right"):
+    if controls_enabled and row_lb2[2].button(f"{B_ICON}➡️", key="lb_right"):
         state["lb_x"] += 1
 
     state["lb_x"], state["lb_y"] = clamp_lightblue(
@@ -799,15 +799,15 @@ with controls_col2:
     figure_header(controls_col2, "Biały kwadrat", "#ffffff", black_override=True)
 
     row_s1 = st.columns(3)
-    if row_s1[1].button(f"{W_ICON}⬆️", key="s_up"):
+    if controls_enabled and row_s1[1].button(f"{W_ICON}⬆️", key="s_up"):
         state["s_cy"] += 1
 
     row_s2 = st.columns(3)
-    if row_s2[0].button(f"{W_ICON}⬅️", key="s_left"):
+    if controls_enabled and row_s2[0].button(f"{W_ICON}⬅️", key="s_left"):
         state["s_cx"] -= 1
-    if row_s2[1].button(f"{W_ICON}⬇️", key="s_down"):
+    if controls_enabled and row_s2[1].button(f"{W_ICON}⬇️", key="s_down"):
         state["s_cy"] -= 1
-    if row_s2[2].button(f"{W_ICON}➡️", key="s_right"):
+    if controls_enabled and row_s2[2].button(f"{W_ICON}➡️", key="s_right"):
         state["s_cx"] += 1
 
     state["s_cx"], state["s_cy"] = clamp_center(
@@ -821,21 +821,21 @@ with controls_col2:
     figure_header(controls_col2, "Czerwony równoległobok", "#ff3333")
 
     row_r1 = st.columns(4)
-    if row_r1[0].button(f"{R_ICON}⟲", key="r_rot_left"):
+    if controls_enabled and row_r1[0].button(f"{R_ICON}⟲", key="r_rot_left"):
         state["r_ori"] = (state["r_ori"] + 1) % 4
-    if row_r1[1].button(f"{R_ICON}⬆️", key="r_up"):
+    if controls_enabled and row_r1[1].button(f"{R_ICON}⬆️", key="r_up"):
         state["r_cy"] += 1
-    if row_r1[2].button(f"{R_ICON}⟳", key="r_rot_right"):
+    if controls_enabled and row_r1[2].button(f"{R_ICON}⟳", key="r_rot_right"):
         state["r_ori"] = (state["r_ori"] - 1) % 4
-    if row_r1[3].button(f"{R_ICON}🔁", key="r_flip_btn"):
+    if controls_enabled and row_r1[3].button(f"{R_ICON}🔁", key="r_flip_btn"):
         state["r_flip"] = not state["r_flip"]
 
     row_r2 = st.columns(3)
-    if row_r2[0].button(f"{R_ICON}⬅️", key="r_left"):
+    if controls_enabled and row_r2[0].button(f"{R_ICON}⬅️", key="r_left"):
         state["r_cx"] -= 1
-    if row_r2[1].button(f"{R_ICON}⬇️", key="r_down"):
+    if controls_enabled and row_r2[1].button(f"{R_ICON}⬇️", key="r_down"):
         state["r_cy"] -= 1
-    if row_r2[2].button(f"{R_ICON}➡️", key="r_right"):
+    if controls_enabled and row_r2[2].button(f"{R_ICON}➡️", key="r_right"):
         state["r_cx"] += 1
 
     state["r_cx"], state["r_cy"] = clamp_parallelogram(
@@ -850,19 +850,19 @@ with controls_col2:
                   BG_COLOR, black_override=True)
 
     row_t2_1 = st.columns(3)
-    if row_t2_1[0].button(f"{W_ICON}⟲", key="t2_rot_left"):
+    if controls_enabled and row_t2_1[0].button(f"{W_ICON}⟲", key="t2_rot_left"):
         state["t2_ori"] = (state["t2_ori"] + 1) % 4
-    if row_t2_1[1].button(f"{W_ICON}⬆️", key="t2_up"):
+    if controls_enabled and row_t2_1[1].button(f"{W_ICON}⬆️", key="t2_up"):
         state["t2_cy"] += 1
-    if row_t2_1[2].button(f"{W_ICON}⟳", key="t2_rot_right"):
+    if controls_enabled and row_t2_1[2].button(f"{W_ICON}⟳", key="t2_rot_right"):
         state["t2_ori"] = (state["t2_ori"] - 1) % 4
 
     row_t2_2 = st.columns(3)
-    if row_t2_2[0].button(f"{W_ICON}⬅️", key="t2_left"):
+    if controls_enabled and row_t2_2[0].button(f"{W_ICON}⬅️", key="t2_left"):
         state["t2_cx"] -= 1
-    if row_t2_2[1].button(f"{W_ICON}⬇️", key="t2_down"):
+    if controls_enabled and row_t2_2[1].button(f"{W_ICON}⬇️", key="t2_down"):
         state["t2_cy"] -= 1
-    if row_t2_2[2].button(f"{W_ICON}➡️", key="t2_right"):
+    if controls_enabled and row_t2_2[2].button(f"{W_ICON}➡️", key="t2_right"):
         state["t2_cx"] += 1
 
     state["t2_cx"], state["t2_cy"] = clamp_center(
