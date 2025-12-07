@@ -4,6 +4,8 @@ import matplotlib.patches as patches
 import numpy as np
 import string
 from shapely.geometry import Polygon
+from streamlit_extras.st_autorefresh import st_autorefresh
+
 
 # ---------------------------------------------------------
 # Konfiguracja plansz (dwa światy)
@@ -144,6 +146,9 @@ if not nick_clean:
 
 st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
+
+# automatyczne odświeżanie całej aplikacji (np. co 2 sekundy)
+st_autorefresh(interval=2000, limit=None, key="chat_autorefresh")
 
 
 # Inicjalizacja stanu gry dla tego pokoju
@@ -548,6 +553,19 @@ controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 
 room_data = rooms[room_code]
 chat_log = room_data.setdefault("chat", [])
 
+def send_message():
+    txt = st.session_state.get("chat_input", "").strip()
+    if not txt:
+        return
+    room_code_local = st.session_state.room_code
+    rooms_local = get_rooms()
+    room_data_local = rooms_local[room_code_local]
+    chat_log_local = room_data_local.setdefault("chat", [])
+    nickname_local = st.session_state.nickname
+    chat_log_local.append({"author": nickname_local, "text": txt})
+    # NIE czyścimy chat_input programowo – unikamy konfliktu z Streamlit API
+
+
 # Prawa kolumna: przełączanie planszy + czat
 with right_col:
     # przycisk przy górnej krawędzi, po prawej od planszy
@@ -569,16 +587,17 @@ with right_col:
     else:
         st.markdown("_Brak wiadomości – napisz coś jako pierwszy._")
 
-    chat_input = st.text_input(
+    # Enter wysyła wiadomość (on_change)
+    st.text_input(
         "Twoja wiadomość",
         key="chat_input",
+        on_change=send_message,
     )
-    
+
+    # Opcjonalnie zostawiamy też przycisk (robi to samo)
     if st.button("Wyślij", key="send_chat"):
-        txt = chat_input.strip()
-        if txt:
-            chat_log.append({"author": nickname, "text": txt})
-            # NIE czyścimy chat_input programowo, nie tykamy session_state tutaj
+        send_message()
+
 
 
 # Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
