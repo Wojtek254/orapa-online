@@ -405,7 +405,7 @@ def check_layout(state):
 # ---------------------------------------------------------
 def draw_board(state, bg_color):
     # trochę mniejsza plansza, żeby zrobić miejsce na czat
-    fig, ax = plt.subplots(figsize=(5, 5))
+    fig, ax = plt.subplots(figsize=(5.5, 5))
 
     fig.patch.set_facecolor(bg_color)
     ax.set_facecolor(bg_color)
@@ -847,6 +847,8 @@ with board_col:
                 st.session_state.current_board = "fioletowa"
             else:
                 st.session_state.current_board = "zielona"
+            st.experimental_rerun()
+
 
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
