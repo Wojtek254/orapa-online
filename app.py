@@ -31,9 +31,9 @@ COLS = 10
 
 
 # ---------------------------------------------------------
-# Funkcja tworząca STAN JEDNEJ PLANSZY
+# Stan JEDNEJ planszy
 # ---------------------------------------------------------
-def make_empty_board():
+def make_single_board():
     return {
         # Żółty trójkąt
         "y_cx": 3.0,
@@ -69,14 +69,17 @@ def make_empty_board():
     }
 
 
+def make_empty_boards():
+    """Dwie plansze: Twoja + Twoje zgadywanie przeciwnika (obie prywatne)."""
+    return {
+        "zielona": make_single_board(),
+        "fioletowa": make_single_board(),
+    }
+
+
 # ---------------------------------------------------------
-# Globalny "magazyn" pokoi (wspólny dla wszystkich sesji)
-# rooms = {
-#   room_code: {
-#       "boards": { nickname: board_state, ... },
-#       "chat":   [ {author, text}, ... ]
-#   }
-# }
+# Globalny magazyn POKOI (wspólny tylko dla czatu)
+# rooms = { room_code: { "chat": [ {author, text}, ... ] } }
 # ---------------------------------------------------------
 @st.cache_resource
 def get_rooms():
@@ -84,23 +87,6 @@ def get_rooms():
 
 
 rooms = get_rooms()
-
-
-def ensure_player_board(room_data, nickname: str):
-    boards = room_data.setdefault("boards", {})
-    if nickname not in boards:
-        boards[nickname] = make_empty_board()
-    return boards[nickname]
-
-
-def get_opponent_board(room_data, nickname: str):
-    boards = room_data.get("boards", {})
-    others = [n for n in boards.keys() if n != nickname]
-    if not others:
-        return None, None
-    # na razie bierzemy pierwszego z listy (alfabetycznie)
-    opp = sorted(others)[0]
-    return opp, boards[opp]
 
 
 # ---------------------------------------------------------
@@ -156,27 +142,34 @@ if not nick_clean:
 st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
 
-# Autoodświeżanie całej appki co 1.5 sekundy (dla czatu / ruchów przeciwnika)
+# Autoodświeżanie całej appki co 1.5 s (czat i ruchy przeciwnika)
 st_autorefresh(interval=1500, key="chat_autorefresh")
 
 # ---------------------------------------------------------
-# Inicjalizacja stanu gry dla pokoju
+# Inicjalizacja pokoju (dla czatu)
 # ---------------------------------------------------------
 if room_code not in rooms:
     rooms[room_code] = {
-        "boards": {},
         "chat": [],
     }
 
 room_data = rooms[room_code]
 
-# Twoja własna plansza (zawsze istnieje po tym kroku)
-my_board = ensure_player_board(room_data, nickname)
+# ---------------------------------------------------------
+# Inicjalizacja prywatnych plansz w sesji
+# ---------------------------------------------------------
+if "boards" not in st.session_state:
+    st.session_state.boards = make_empty_boards()
 
-# Aktualny widok (zielona / fioletowa)
 if "current_board" not in st.session_state:
     st.session_state.current_board = "zielona"
 
+board_key = st.session_state.current_board  # "zielona" albo "fioletowa"
+boards = st.session_state.boards
+state = boards[board_key]
+
+BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
+board_title = BOARD_CONFIGS[board_key]["label"]
 
 # ---------------------------------------------------------
 # Geometria figur (bazowa w (0,0))
@@ -570,32 +563,6 @@ def send_message():
 
 
 # ---------------------------------------------------------
-# Ustalenie, którą planszę wyświetlamy (Twoja / przeciwnika)
-# ---------------------------------------------------------
-board_view = st.session_state.current_board  # "zielona" albo "fioletowa"
-
-if board_view == "zielona":
-    # Twoja plansza – pełne sterowanie
-    state = my_board
-    controls_enabled = True
-    BG_COLOR = BOARD_CONFIGS["zielona"]["bg"]
-    board_title = BOARD_CONFIGS["zielona"]["label"]
-else:
-    # Plansza przeciwnika – tylko podgląd
-    opp_nick, opp_board = get_opponent_board(room_data, nickname)
-    if opp_board is None:
-        # Brak przeciwnika – pokazujemy Twoją planszę, ale bez sterowania
-        state = my_board
-        controls_enabled = False
-        info_no_opp = True
-    else:
-        state = opp_board
-        controls_enabled = False
-        info_no_opp = False
-    BG_COLOR = BOARD_CONFIGS["fioletowa"]["bg"]
-    board_title = BOARD_CONFIGS["fioletowa"]["label"]
-
-# ---------------------------------------------------------
 # Layout: dwie kolumny sterowania + plansza + prawa kolumna (czat)
 # ---------------------------------------------------------
 controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
@@ -645,8 +612,9 @@ with right_col:
         on_change=send_message,
     )
 
+
 # ---------------------------------------------------------
-# KOLUMNA STEROWANIA 1 – przyciski działają tylko gdy controls_enabled
+# KOLUMNA STEROWANIA 1
 # ---------------------------------------------------------
 with controls_col1:
 
@@ -654,26 +622,25 @@ with controls_col1:
     figure_header(controls_col1, "Żółty trójkąt", "#ffd000")
 
     row_y1 = st.columns(3)
-    if controls_enabled and row_y1[0].button(f"{Y_ICON}⟲", key="y_rot_left"):
+    if row_y1[0].button(f"{Y_ICON}⟲", key="y_rot_left"):
         state["y_ori"] = (state["y_ori"] + 1) % 4
-    if controls_enabled and row_y1[1].button(f"{Y_ICON}⬆️", key="y_up"):
+    if row_y1[1].button(f"{Y_ICON}⬆️", key="y_up"):
         state["y_cy"] += 1
-    if controls_enabled and row_y1[2].button(f"{Y_ICON}⟳", key="y_rot_right"):
+    if row_y1[2].button(f"{Y_ICON}⟳", key="y_rot_right"):
         state["y_ori"] = (state["y_ori"] - 1) % 4
 
     row_y2 = st.columns(3)
-    if controls_enabled and row_y2[0].button(f"{Y_ICON}⬅️", key="y_left"):
+    if row_y2[0].button(f"{Y_ICON}⬅️", key="y_left"):
         state["y_cx"] -= 1
-    if controls_enabled and row_y2[1].button(f"{Y_ICON}⬇️", key="y_down"):
+    if row_y2[1].button(f"{Y_ICON}⬇️", key="y_down"):
         state["y_cy"] -= 1
-    if controls_enabled and row_y2[2].button(f"{Y_ICON}➡️", key="y_right"):
+    if row_y2[2].button(f"{Y_ICON}➡️", key="y_right"):
         state["y_cx"] += 1
 
-    if controls_enabled:
-        state["y_cx"], state["y_cy"] = clamp_center(
-            state["y_cx"], state["y_cy"],
-            state["y_ori"], yellow_vertices
-        )
+    state["y_cx"], state["y_cy"] = clamp_center(
+        state["y_cx"], state["y_cy"],
+        state["y_ori"], yellow_vertices
+    )
 
     st.markdown("---")
 
@@ -681,26 +648,25 @@ with controls_col1:
     figure_header(controls_col1, "Biały trójkąt", "#ffffff", black_override=True)
 
     row_w1 = st.columns(3)
-    if controls_enabled and row_w1[0].button(f"{W_ICON}⟲", key="w_rot_left"):
+    if row_w1[0].button(f"{W_ICON}⟲", key="w_rot_left"):
         state["w_ori"] = (state["w_ori"] + 1) % 4
-    if controls_enabled and row_w1[1].button(f"{W_ICON}⬆️", key="w_up"):
+    if row_w1[1].button(f"{W_ICON}⬆️", key="w_up"):
         state["w_cy"] += 1
-    if controls_enabled and row_w1[2].button(f"{W_ICON}⟳", key="w_rot_right"):
+    if row_w1[2].button(f"{W_ICON}⟳", key="w_rot_right"):
         state["w_ori"] = (state["w_ori"] - 1) % 4
 
     row_w2 = st.columns(3)
-    if controls_enabled and row_w2[0].button(f"{W_ICON}⬅️", key="w_left"):
+    if row_w2[0].button(f"{W_ICON}⬅️", key="w_left"):
         state["w_cx"] -= 1
-    if controls_enabled and row_w2[1].button(f"{W_ICON}⬇️", key="w_down"):
+    if row_w2[1].button(f"{W_ICON}⬇️", key="w_down"):
         state["w_cy"] -= 1
-    if controls_enabled and row_w2[2].button(f"{W_ICON}➡️", key="w_right"):
+    if row_w2[2].button(f"{W_ICON}➡️", key="w_right"):
         state["w_cx"] += 1
 
-    if controls_enabled:
-        state["w_cx"], state["w_cy"] = clamp_center(
-            state["w_cx"], state["w_cy"],
-            state["w_ori"], small_tri_vertices
-        )
+    state["w_cx"], state["w_cy"] = clamp_center(
+        state["w_cx"], state["w_cy"],
+        state["w_ori"], small_tri_vertices
+    )
 
     st.markdown("---")
 
@@ -708,26 +674,25 @@ with controls_col1:
     figure_header(controls_col1, "Niebieski trójkąt", "#3399ff")
 
     row_b1 = st.columns(3)
-    if controls_enabled and row_b1[0].button(f"{B_ICON}⟲", key="b_rot_left"):
+    if row_b1[0].button(f"{B_ICON}⟲", key="b_rot_left"):
         state["b_ori"] = (state["b_ori"] + 1) % 4
-    if controls_enabled and row_b1[1].button(f"{B_ICON}⬆️", key="b_up"):
+    if row_b1[1].button(f"{B_ICON}⬆️", key="b_up"):
         state["b_cy"] += 1
-    if controls_enabled and row_b1[2].button(f"{B_ICON}⟳", key="b_rot_right"):
+    if row_b1[2].button(f"{B_ICON}⟳", key="b_rot_right"):
         state["b_ori"] = (state["b_ori"] - 1) % 4
 
     row_b2 = st.columns(3)
-    if controls_enabled and row_b2[0].button(f"{B_ICON}⬅️", key="b_left"):
+    if row_b2[0].button(f"{B_ICON}⬅️", key="b_left"):
         state["b_cx"] -= 1
-    if controls_enabled and row_b2[1].button(f"{B_ICON}⬇️", key="b_down"):
+    if row_b2[1].button(f"{B_ICON}⬇️", key="b_down"):
         state["b_cy"] -= 1
-    if controls_enabled and row_b2[2].button(f"{B_ICON}➡️", key="b_right"):
+    if row_b2[2].button(f"{B_ICON}➡️", key="b_right"):
         state["b_cx"] += 1
 
-    if controls_enabled:
-        state["b_cx"], state["b_cy"] = clamp_center(
-            state["b_cx"], state["b_cy"],
-            state["b_ori"], small_tri_vertices
-        )
+    state["b_cx"], state["b_cy"] = clamp_center(
+        state["b_cx"], state["b_cy"],
+        state["b_ori"], small_tri_vertices
+    )
 
     st.markdown("---")
 
@@ -735,21 +700,20 @@ with controls_col1:
     figure_header(controls_col1, "Jasnoniebieski kwadrat", "#66c2ff")
 
     row_lb1 = st.columns(3)
-    if controls_enabled and row_lb1[1].button(f"{B_ICON}⬆️", key="lb_up"):
+    if row_lb1[1].button(f"{B_ICON}⬆️", key="lb_up"):
         state["lb_y"] += 1
 
     row_lb2 = st.columns(3)
-    if controls_enabled and row_lb2[0].button(f"{B_ICON}⬅️", key="lb_left"):
+    if row_lb2[0].button(f"{B_ICON}⬅️", key="lb_left"):
         state["lb_x"] -= 1
-    if controls_enabled and row_lb2[1].button(f"{B_ICON}⬇️", key="lb_down"):
+    if row_lb2[1].button(f"{B_ICON}⬇️", key="lb_down"):
         state["lb_y"] -= 1
-    if controls_enabled and row_lb2[2].button(f"{B_ICON}➡️", key="lb_right"):
+    if row_lb2[2].button(f"{B_ICON}➡️", key="lb_right"):
         state["lb_x"] += 1
 
-    if controls_enabled:
-        state["lb_x"], state["lb_y"] = clamp_lightblue(
-            state["lb_x"], state["lb_y"]
-        )
+    state["lb_x"], state["lb_y"] = clamp_lightblue(
+        state["lb_x"], state["lb_y"]
+    )
 
 
 # ---------------------------------------------------------
@@ -761,22 +725,21 @@ with controls_col2:
     figure_header(controls_col2, "Biały kwadrat", "#ffffff", black_override=True)
 
     row_s1 = st.columns(3)
-    if controls_enabled and row_s1[1].button(f"{W_ICON}⬆️", key="s_up"):
+    if row_s1[1].button(f"{W_ICON}⬆️", key="s_up"):
         state["s_cy"] += 1
 
     row_s2 = st.columns(3)
-    if controls_enabled and row_s2[0].button(f"{W_ICON}⬅️", key="s_left"):
+    if row_s2[0].button(f"{W_ICON}⬅️", key="s_left"):
         state["s_cx"] -= 1
-    if controls_enabled and row_s2[1].button(f"{W_ICON}⬇️", key="s_down"):
+    if row_s2[1].button(f"{W_ICON}⬇️", key="s_down"):
         state["s_cy"] -= 1
-    if controls_enabled and row_s2[2].button(f"{W_ICON}➡️", key="s_right"):
+    if row_s2[2].button(f"{W_ICON}➡️", key="s_right"):
         state["s_cx"] += 1
 
-    if controls_enabled:
-        state["s_cx"], state["s_cy"] = clamp_center(
-            state["s_cx"], state["s_cy"],
-            state["s_ori"], square_diamond_vertices
-        )
+    state["s_cx"], state["s_cy"] = clamp_center(
+        state["s_cx"], state["s_cy"],
+        state["s_ori"], square_diamond_vertices
+    )
 
     st.markdown("---")
 
@@ -784,28 +747,27 @@ with controls_col2:
     figure_header(controls_col2, "Czerwony równoległobok", "#ff3333")
 
     row_r1 = st.columns(4)
-    if controls_enabled and row_r1[0].button(f"{R_ICON}⟲", key="r_rot_left"):
+    if row_r1[0].button(f"{R_ICON}⟲", key="r_rot_left"):
         state["r_ori"] = (state["r_ori"] + 1) % 4
-    if controls_enabled and row_r1[1].button(f"{R_ICON}⬆️", key="r_up"):
+    if row_r1[1].button(f"{R_ICON}⬆️", key="r_up"):
         state["r_cy"] += 1
-    if controls_enabled and row_r1[2].button(f"{R_ICON}⟳", key="r_rot_right"):
+    if row_r1[2].button(f"{R_ICON}⟳", key="r_rot_right"):
         state["r_ori"] = (state["r_ori"] - 1) % 4
-    if controls_enabled and row_r1[3].button(f"{R_ICON}🔁", key="r_flip_btn"):
+    if row_r1[3].button(f"{R_ICON}🔁", key="r_flip_btn"):
         state["r_flip"] = not state["r_flip"]
 
     row_r2 = st.columns(3)
-    if controls_enabled and row_r2[0].button(f"{R_ICON}⬅️", key="r_left"):
+    if row_r2[0].button(f"{R_ICON}⬅️", key="r_left"):
         state["r_cx"] -= 1
-    if controls_enabled and row_r2[1].button(f"{R_ICON}⬇️", key="r_down"):
+    if row_r2[1].button(f"{R_ICON}⬇️", key="r_down"):
         state["r_cy"] -= 1
-    if controls_enabled and row_r2[2].button(f"{R_ICON}➡️", key="r_right"):
+    if row_r2[2].button(f"{R_ICON}➡️", key="r_right"):
         state["r_cx"] += 1
 
-    if controls_enabled:
-        state["r_cx"], state["r_cy"] = clamp_parallelogram(
-            state["r_cx"], state["r_cy"],
-            state["r_ori"], state["r_flip"]
-        )
+    state["r_cx"], state["r_cy"] = clamp_parallelogram(
+        state["r_cx"], state["r_cy"],
+        state["r_ori"], state["r_flip"]
+    )
 
     st.markdown("---")
 
@@ -814,42 +776,41 @@ with controls_col2:
                   BG_COLOR, black_override=True)
 
     row_t2_1 = st.columns(3)
-    if controls_enabled and row_t2_1[0].button(f"{W_ICON}⟲", key="t2_rot_left"):
+    if row_t2_1[0].button(f"{W_ICON}⟲", key="t2_rot_left"):
         state["t2_ori"] = (state["t2_ori"] + 1) % 4
-    if controls_enabled and row_t2_1[1].button(f"{W_ICON}⬆️", key="t2_up"):
+    if row_t2_1[1].button(f"{W_ICON}⬆️", key="t2_up"):
         state["t2_cy"] += 1
-    if controls_enabled and row_t2_1[2].button(f"{W_ICON}⟳", key="t2_rot_right"):
+    if row_t2_1[2].button(f"{W_ICON}⟳", key="t2_rot_right"):
         state["t2_ori"] = (state["t2_ori"] - 1) % 4
 
     row_t2_2 = st.columns(3)
-    if controls_enabled and row_t2_2[0].button(f"{W_ICON}⬅️", key="t2_left"):
+    if row_t2_2[0].button(f"{W_ICON}⬅️", key="t2_left"):
         state["t2_cx"] -= 1
-    if controls_enabled and row_t2_2[1].button(f"{W_ICON}⬇️", key="t2_down"):
+    if row_t2_2[1].button(f"{W_ICON}⬇️", key="t2_down"):
         state["t2_cy"] -= 1
-    if controls_enabled and row_t2_2[2].button(f"{W_ICON}➡️", key="t2_right"):
+    if row_t2_2[2].button(f"{W_ICON}➡️", key="t2_right"):
         state["t2_cx"] += 1
 
-    if controls_enabled:
-        state["t2_cx"], state["t2_cy"] = clamp_center(
-            state["t2_cx"], state["t2_cy"],
-            state["t2_ori"], tri_hyp2_vertices
-        )
+    state["t2_cx"], state["t2_cy"] = clamp_center(
+        state["t2_cx"], state["t2_cy"],
+        state["t2_ori"], tri_hyp2_vertices
+    )
 
     st.markdown("---")
 
-    # ---------------- PRZYCISK SPRAWDZANIA UKŁADU (dla Twojej planszy) ----------------
-    figure_header(controls_col2, "Sprawdzenie ułożenia (Twoja plansza)", "#ffffff", black_override=True)
+    # ---------------- PRZYCISK SPRAWDZANIA UKŁADU ----------------
+    figure_header(controls_col2, "Sprawdzenie ułożenia", "#ffffff", black_override=True)
 
     row_check = st.columns([1, 0.2])
 
     with row_check[0]:
-        if controls_enabled and st.button("Sprawdź ułożenie", key="check_layout"):
-            valid, msg = check_layout(my_board)
-            my_board["layout_valid"] = valid
-            my_board["layout_msg"] = msg
+        if st.button("Sprawdź ułożenie", key="check_layout"):
+            valid, msg = check_layout(state)
+            state["layout_valid"] = valid
+            state["layout_msg"] = msg
 
     with row_check[1]:
-        status = my_board["layout_valid"]
+        status = state["layout_valid"]
         if status is True:
             st.markdown("<span style='font-size: 1.8rem;'>✅</span>", unsafe_allow_html=True)
         elif status is False:
@@ -857,12 +818,12 @@ with controls_col2:
         else:
             st.markdown("<span style='font-size: 1.8rem;'>&nbsp;</span>", unsafe_allow_html=True)
 
-    if my_board["layout_valid"] is True:
-        st.success(my_board["layout_msg"])
-    elif my_board["layout_valid"] is False:
-        st.error(my_board["layout_msg"])
+    if state["layout_valid"] is True:
+        st.success(state["layout_msg"])
+    elif state["layout_valid"] is False:
+        st.error(state["layout_msg"])
     else:
-        st.markdown("_Kliknij przycisk, żeby sprawdzić ułożenie figury na Twojej planszy._")
+        st.markdown("_Kliknij przycisk, żeby sprawdzić ułożenie figur na tej planszy._")
 
 
 # ---------------------------------------------------------
@@ -885,13 +846,6 @@ with board_col:
             else:
                 st.session_state.current_board = "zielona"
             st.experimental_rerun()
-
-    if board_view == "fioletowa":
-        opp_nick, _ = get_opponent_board(room_data, nickname)
-        if opp_nick is None:
-            st.info("W pokoju nie ma jeszcze przeciwnika – widzisz swoją planszę.")
-        else:
-            st.markdown(f"<p style='text-align:center;'>Przeciwnik: <b>{opp_nick}</b></p>", unsafe_allow_html=True)
 
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
