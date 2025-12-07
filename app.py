@@ -4,7 +4,6 @@ import matplotlib.patches as patches
 import numpy as np
 import string
 from shapely.geometry import Polygon
-from streamlit_extras.st_autorefresh import st_autorefresh
 
 
 # ---------------------------------------------------------
@@ -147,8 +146,18 @@ if not nick_clean:
 st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
 
-# automatyczne odświeżanie całej aplikacji (np. co 2 sekundy)
-st_autorefresh(interval=2000, limit=None, key="chat_autorefresh")
+# ----------------- Autoodświeżanie co 2 sekundy -----------------
+st.markdown(
+    """
+    <script>
+    setTimeout(function() {
+        window.location.reload();
+    }, 2000);
+    </script>
+    """,
+    unsafe_allow_html=True
+)
+
 
 
 # Inicjalizacja stanu gry dla tego pokoju
