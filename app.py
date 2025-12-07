@@ -476,7 +476,7 @@ def check_layout(state):
 # Rysowanie planszy
 # ---------------------------------------------------------
 def draw_board(state, bg_color):
-    fig, ax = plt.subplots(figsize=(5, 5))
+    fig, ax = plt.subplots(figsize=(4.5, 4))
 
     fig.patch.set_facecolor(bg_color)
     ax.set_facecolor(bg_color)
