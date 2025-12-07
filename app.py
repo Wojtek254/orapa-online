@@ -100,30 +100,26 @@ st.markdown(
 )
 
 # ---------------------------------------------------------
-# LOBBY – wybór pokoju
+# LOBBY – wybór pokoju (Enter zatwierdza)
 # ---------------------------------------------------------
+if "room_input" not in st.session_state:
+    st.session_state.room_input = ""
 if "room_code" not in st.session_state:
     st.session_state.room_code = ""
 
-room_col1, room_col2 = st.columns([1.0, 0.3])
-
-with room_col1:
+room_col = st.container()
+with room_col:
     room_input = st.text_input(
         "Kod pokoju (umów się z drugim graczem, np. ABC123)",
-        value=st.session_state.room_code,
+        value=st.session_state.room_input,
+        key="room_input",
     )
 
-with room_col2:
-    st.markdown("&nbsp;")
-    join_clicked = st.button("Dołącz / utwórz pokój")
-
-if join_clicked:
-    st.session_state.room_code = room_input.strip()
-
-room_code = st.session_state.room_code.strip()
+room_code = room_input.strip()
+st.session_state.room_code = room_code
 
 if not room_code:
-    st.warning("Podaj kod pokoju, żeby zacząć grę.")
+    st.warning("Podaj kod pokoju i naciśnij Enter, żeby zacząć grę.")
     st.stop()
 
 # --- Nazwa gracza widoczna w czacie ---
@@ -145,7 +141,7 @@ if not nick_clean:
 st.session_state.nickname = nick_clean
 nickname = st.session_state.nickname
 
-# Autoodświeżanie całej appki co 1 sekundę
+# Autoodświeżanie całej appki co 1 sekundę (dla czatu / ruchów)
 st_autorefresh(interval=1000, key="chat_autorefresh")
 
 # ---------------------------------------------------------
@@ -564,38 +560,58 @@ def send_message():
 # ---------------------------------------------------------
 controls_col1, controls_col2, board_col, right_col = st.columns([0.4, 0.4, 1.6, 1.0])
 
-# Prawa kolumna: przełączanie planszy + czat
-with right_col:
-    st.markdown("### ")
-    if st.button("Przełącz planszę", key="switch_board"):
-        if st.session_state.current_board == "zielona":
-            st.session_state.current_board = "fioletowa"
-        else:
-            st.session_state.current_board = "zielona"
+# Pozycja planszy i tła
+board_key = st.session_state.current_board
+BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
+state = room_data["boards"][board_key]
 
-    st.markdown("---")
+# Prawa kolumna: CZAT (scroll) – bez przycisku przełączania
+with right_col:
     st.markdown("### Czat pokoju")
 
     chat_log = room_data.setdefault("chat", [])
 
+    # Scrollowalne okno na wiadomości
+    st.markdown(
+        "<div style='max-height: 400px; overflow-y: auto; padding-right: 4px;'>",
+        unsafe_allow_html=True,
+    )
+
     if chat_log:
-        for msg in chat_log[-50:]:
+        for msg in chat_log[-100:]:
             author = msg.get("author", "Anonim")
             text = msg.get("text", "")
-            st.markdown(f"**{author}:** {text}")
+            # moje wiadomości – białe tło, przeciwnika – jasnofioletowe
+            if author == nickname:
+                bg = "#ffffff"
+            else:
+                bg = "#f3e6ff"  # jasnofioletowe
+            html = f"""
+            <div style="
+                background-color:{bg};
+                padding:6px 8px;
+                margin-bottom:4px;
+                border-radius:6px;
+                font-size:0.9rem;
+            ">
+                <strong>{author}:</strong> {text}
+            </div>
+            """
+            st.markdown(html, unsafe_allow_html=True)
     else:
-        st.markdown("_Brak wiadomości – napisz coś jako pierwszy._")
+        st.markdown(
+            "<em>Brak wiadomości – napisz coś jako pierwszy.</em>",
+            unsafe_allow_html=True,
+        )
 
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Pole wpisywania – Enter wysyła
     st.text_input(
         "Twoja wiadomość (Enter wysyła)",
         key="chat_input",
         on_change=send_message,
     )
-
-# Po ewentualnym przełączeniu – aktualna plansza, kolor tła, stan
-board_key = st.session_state.current_board
-BG_COLOR = BOARD_CONFIGS[board_key]["bg"]
-state = room_data["boards"][board_key]
 
 
 # =====================================================================
@@ -812,13 +828,25 @@ with controls_col2:
 
 
 # ---------------------------------------------------------
-# Plansza – prawa duża kolumna
+# Plansza – prawa duża kolumna + przycisk przełączania obok tytułu
 # ---------------------------------------------------------
 with board_col:
-    board_title = BOARD_CONFIGS[board_key]["label"]
-    st.markdown(
-        f"<h2 style='text-align:center; margin-top:0;'>{board_title}</h2>",
-        unsafe_allow_html=True,
-    )
+    title_col, btn_col = st.columns([0.8, 0.2])
+
+    with title_col:
+        board_title = BOARD_CONFIGS[board_key]["label"]
+        st.markdown(
+            f"<h2 style='text-align:center; margin-top:0;'>{board_title}</h2>",
+            unsafe_allow_html=True,
+        )
+
+    with btn_col:
+        st.markdown("&nbsp;")
+        if st.button("Przełącz planszę", key="switch_board"):
+            if st.session_state.current_board == "zielona":
+                st.session_state.current_board = "fioletowa"
+            else:
+                st.session_state.current_board = "zielona"
+
     fig = draw_board(state, BG_COLOR)
     st.pyplot(fig)
